@@ -4,21 +4,25 @@ import com.example.component.ChatPanel;
 import com.example.model.User;
 import com.example.model.Settings;
 import com.example.view.PrivateChatView;
+import com.example.dao.UserDAO;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.io.*;
 import java.net.Socket;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicScrollBarUI;
-// import java.awt.event.ActionEvent;
-// import java.awt.event.ActionListener;
-// import javax.swing.Timer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
 
 public class MainView extends JFrame {
     // 简化颜色方案
@@ -50,13 +54,22 @@ public class MainView extends JFrame {
     private JPanel userListPanel;
     private DefaultListModel<User> userListModel;
     private JList<User> userList;
+    // Add new fields for user list management
+    private JToggleButton showAllUsersToggle;
+    private Set<Long> onlineUserIds = new HashSet<>();
+    private List<User> allUsers = new ArrayList<>();
+    private boolean showingAllUsers = false;
 
     // 字体常量
     private static final Font CHINESE_FONT = new Font("Microsoft YaHei", Font.PLAIN, 14); // 微软雅黑
     private static final Font CHINESE_FONT_BOLD = new Font("Microsoft YaHei", Font.BOLD, 14); // 微软雅黑粗体
 
+    // Add UserDAO field
+    private UserDAO userDAO;
+
     public MainView(User user) {
         this.currentUser = user;
+        this.userDAO = new UserDAO();
         initUI();
         connectToServer();
         startMessageListening();
@@ -150,9 +163,18 @@ public class MainView extends JFrame {
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         statusPanel.setOpaque(false);
         
-        // 添加设置按钮
+        // 添加设置按钮和服务器列表按钮
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         actionPanel.setOpaque(false);
+        
+        JButton serverListButton = new JButton("服务器列表");
+        serverListButton.setFont(CHINESE_FONT);
+        serverListButton.setForeground(PRIMARY_COLOR);
+        serverListButton.setBorderPainted(false);
+        serverListButton.setContentAreaFilled(false);
+        serverListButton.setFocusPainted(false);
+        serverListButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        serverListButton.addActionListener(e -> openServerList());
         
         JButton settingsButton = new JButton("设置");
         settingsButton.setFont(CHINESE_FONT);
@@ -163,6 +185,7 @@ public class MainView extends JFrame {
         settingsButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         settingsButton.addActionListener(e -> openSettings());
         
+        actionPanel.add(serverListButton);
         actionPanel.add(settingsButton);
         titleBar.add(actionPanel, BorderLayout.EAST);
         
@@ -359,6 +382,7 @@ public class MainView extends JFrame {
         try {
             if (listeningThread != null) {
                 listeningThread.interrupt(); // 中断监听线程
+                listeningThread = null;
             }
 
             if (out != null) {
@@ -377,6 +401,7 @@ public class MainView extends JFrame {
             }
 
             System.out.println("连接已关闭");
+            updateConnectionStatus(false);
         } catch (IOException e) {
             System.err.println("关闭连接时出错: " + e.getMessage());
         }
@@ -393,6 +418,11 @@ public class MainView extends JFrame {
 
     // 添加消息监听方法实现
     private void startMessageListening() {
+        // If there's already a listening thread, stop it
+        if (listeningThread != null) {
+            listeningThread.interrupt();
+        }
+        
         listeningThread = new Thread(() -> {
             String message;
             try {
@@ -415,7 +445,7 @@ public class MainView extends JFrame {
                     }
                 }
             } catch (IOException e) {
-                if (!clientSocket.isClosed()) {
+                if (!Thread.currentThread().isInterrupted() && clientSocket != null && !clientSocket.isClosed()) {
                     JOptionPane.showMessageDialog(this, "服务器连接断开: " + e.getMessage());
                     updateConnectionStatus(false);
                 }
@@ -551,11 +581,11 @@ public class MainView extends JFrame {
 
     private void initUserListPanel() {
         userListPanel = new JPanel(new BorderLayout());
-        userListPanel.setPreferredSize(new Dimension(200, 0));
+        userListPanel.setPreferredSize(new Dimension(220, 0));
         userListPanel.setBackground(BACKGROUND_COLOR);
         userListPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
 
-        // Create header
+        // Create header with toggle button
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(CHAT_BACKGROUND);
         headerPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -563,10 +593,100 @@ public class MainView extends JFrame {
             BorderFactory.createEmptyBorder(15, 15, 15, 15)
         ));
 
+        // Create title with user count
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        titlePanel.setOpaque(false);
+        
         JLabel titleLabel = new JLabel("在线用户");
         titleLabel.setFont(CHINESE_FONT_BOLD);
         titleLabel.setForeground(TEXT_COLOR);
-        headerPanel.add(titleLabel, BorderLayout.WEST);
+        titlePanel.add(titleLabel);
+        
+        JLabel countLabel = new JLabel(" (0)");
+        countLabel.setFont(CHINESE_FONT);
+        countLabel.setForeground(SECONDARY_TEXT);
+        titlePanel.add(countLabel);
+        
+        headerPanel.add(titlePanel, BorderLayout.WEST);
+        
+        // Add toggle button with modern styling
+        showAllUsersToggle = new JToggleButton("全部");
+        showAllUsersToggle.setFont(CHINESE_FONT);
+        showAllUsersToggle.setToolTipText("显示所有用户");
+        showAllUsersToggle.setForeground(PRIMARY_COLOR);
+        showAllUsersToggle.setBorderPainted(false);
+        showAllUsersToggle.setContentAreaFilled(false);
+        showAllUsersToggle.setFocusPainted(false);
+        showAllUsersToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        showAllUsersToggle.addActionListener(e -> {
+            toggleUserListMode();
+            // 更新计数标签
+            int count = showingAllUsers ? allUsers.size() : onlineUserIds.size();
+            countLabel.setText(" (" + count + ")");
+            // 更新标题标签
+            titleLabel.setText(showingAllUsers ? "所有用户" : "在线用户");
+            // 更新按钮文本
+            showAllUsersToggle.setText(showingAllUsers ? "在线" : "全部");
+            // 更新工具提示
+            showAllUsersToggle.setToolTipText(showingAllUsers ? "显示在线用户" : "显示所有用户");
+        });
+        headerPanel.add(showAllUsersToggle, BorderLayout.EAST);
+
+        // Create search panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(BACKGROUND_COLOR);
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JTextField searchField = new JTextField();
+        searchField.setFont(CHINESE_FONT);
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
+            BorderFactory.createEmptyBorder(6, 10, 6, 10)
+        ));
+        searchField.setBackground(Color.WHITE);
+        searchField.setForeground(TEXT_COLOR);
+        searchField.setCaretColor(PRIMARY_COLOR);
+        
+        // Add placeholder text
+        searchField.setText("搜索用户...");
+        searchField.setForeground(SECONDARY_TEXT);
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (searchField.getText().equals("搜索用户...")) {
+                    searchField.setText("");
+                    searchField.setForeground(TEXT_COLOR);
+                }
+            }
+            
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (searchField.getText().isEmpty()) {
+                    searchField.setText("搜索用户...");
+                    searchField.setForeground(SECONDARY_TEXT);
+                }
+            }
+        });
+        
+        // Add search functionality
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filterUserList(searchField.getText());
+            }
+            
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filterUserList(searchField.getText());
+            }
+            
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filterUserList(searchField.getText());
+            }
+        });
+        
+        searchPanel.add(searchField, BorderLayout.CENTER);
 
         // Create user list
         userListModel = new DefaultListModel<>();
@@ -574,6 +694,7 @@ public class MainView extends JFrame {
         userList.setCellRenderer(new UserListCellRenderer());
         userList.setBackground(BACKGROUND_COLOR);
         userList.setBorder(null);
+        userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         // 添加鼠标监听器处理用户点击
         userList.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -592,88 +713,145 @@ public class MainView extends JFrame {
             }
         });
 
+        // Create a custom scroll pane with modern styling
         JScrollPane listScrollPane = new JScrollPane(userList);
         listScrollPane.setBorder(null);
         listScrollPane.getViewport().setBackground(BACKGROUND_COLOR);
+        
+        // Set modern scrollbar UI
+        listScrollPane.getVerticalScrollBar().setUI(new ModernScrollBarUI());
+        listScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        listScrollPane.getHorizontalScrollBar().setUI(new ModernScrollBarUI());
 
+        // Add components to user list panel
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(BACKGROUND_COLOR);
+        contentPanel.add(searchPanel, BorderLayout.NORTH);
+        contentPanel.add(listScrollPane, BorderLayout.CENTER);
+        
         userListPanel.add(headerPanel, BorderLayout.NORTH);
-        userListPanel.add(listScrollPane, BorderLayout.CENTER);
+        userListPanel.add(contentPanel, BorderLayout.CENTER);
+        
+        // Load all users from database
+        loadAllUsers();
     }
 
     private class UserListCellRenderer extends JPanel implements ListCellRenderer<User> {
         private JLabel avatarLabel;
         private JLabel nameLabel;
-        private JLabel statusDot;
+        private JPanel statusIndicator;
+        private JLabel statusLabel;
 
         public UserListCellRenderer() {
             setLayout(new BorderLayout(10, 0));
             setOpaque(true);
             setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
-            JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            leftPanel.setOpaque(false);
+            // Avatar panel (left side)
+            JPanel avatarPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+            avatarPanel.setOpaque(false);
+            avatarPanel.setPreferredSize(new Dimension(40, 40));
 
-            avatarLabel = new JLabel();
-            avatarLabel.setPreferredSize(new Dimension(32, 32));
-            leftPanel.add(avatarLabel);
-
-            JPanel rightPanel = new JPanel();
-            rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
-            rightPanel.setOpaque(false);
-
-            nameLabel = new JLabel();
-            nameLabel.setFont(CHINESE_FONT);
-            nameLabel.setForeground(TEXT_COLOR);
-            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-            statusPanel.setOpaque(false);
-
-            statusDot = new JLabel() {
+            avatarLabel = new JLabel() {
                 @Override
                 protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(SUCCESS_COLOR);
+                    
+                    // Draw circle background
+                    g2.setColor(PRIMARY_COLOR);
+                    g2.fillOval(0, 0, getWidth(), getHeight());
+                    
+                    // Draw text
+                    super.paintComponent(g);
+                    g2.dispose();
+                }
+            };
+            avatarLabel.setPreferredSize(new Dimension(36, 36));
+            avatarLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            avatarLabel.setVerticalAlignment(SwingConstants.CENTER);
+            avatarLabel.setFont(new Font("微软雅黑", Font.BOLD, 14));
+            avatarLabel.setForeground(Color.WHITE);
+            
+            avatarPanel.add(avatarLabel);
+
+            // Info panel (right side)
+            JPanel infoPanel = new JPanel();
+            infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+            infoPanel.setOpaque(false);
+
+            nameLabel = new JLabel();
+            nameLabel.setFont(new Font("微软雅黑", Font.BOLD, 14));
+            nameLabel.setForeground(TEXT_COLOR);
+            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            // Status panel with indicator
+            JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+            statusPanel.setOpaque(false);
+
+            statusIndicator = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(getBackground());
                     g2.fillOval(0, 0, getWidth(), getHeight());
                     g2.dispose();
                 }
             };
-            statusDot.setPreferredSize(new Dimension(6, 6));
+            statusIndicator.setPreferredSize(new Dimension(8, 8));
+            statusIndicator.setOpaque(false);
 
-            JLabel statusLabel = new JLabel("在线");
-            statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
+            statusLabel = new JLabel();
+            statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
             statusLabel.setForeground(SECONDARY_TEXT);
 
-            statusPanel.add(statusDot);
+            statusPanel.add(statusIndicator);
             statusPanel.add(statusLabel);
 
-            rightPanel.add(nameLabel);
-            rightPanel.add(statusPanel);
+            infoPanel.add(nameLabel);
+            infoPanel.add(Box.createVerticalStrut(2));
+            infoPanel.add(statusPanel);
 
-            add(leftPanel, BorderLayout.WEST);
-            add(rightPanel, BorderLayout.CENTER);
+            add(avatarPanel, BorderLayout.WEST);
+            add(infoPanel, BorderLayout.CENTER);
         }
 
         @Override
         public Component getListCellRendererComponent(JList<? extends User> list, User user,
                                                     int index, boolean isSelected, boolean cellHasFocus) {
+            // Set user name
             nameLabel.setText(user.getName());
 
             // Create avatar with user's initial
             String initial = getInitials(user.getName());
             avatarLabel.setText(initial);
-            avatarLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            avatarLabel.setVerticalAlignment(SwingConstants.CENTER);
-            avatarLabel.setFont(new Font("微软雅黑", Font.BOLD, 12));
-            avatarLabel.setForeground(Color.WHITE);
-            avatarLabel.setOpaque(true);
-            avatarLabel.setBackground(PRIMARY_COLOR);
 
+            // Check if user is online
+            boolean isOnline = onlineUserIds.contains(user.getId());
+            
+            // Update status indicator
+            if (isOnline) {
+                statusLabel.setText("在线");
+                statusIndicator.setBackground(SUCCESS_COLOR);
+            } else {
+                statusLabel.setText("离线");
+                statusIndicator.setBackground(new Color(180, 180, 180));
+            }
+
+            // Set background color based on selection
             if (isSelected) {
                 setBackground(new Color(232, 240, 254));
+                setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 230, 245)),
+                    BorderFactory.createEmptyBorder(10, 15, 10, 15)
+                ));
             } else {
                 setBackground(BACKGROUND_COLOR);
+                setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR),
+                    BorderFactory.createEmptyBorder(10, 15, 10, 15)
+                ));
             }
 
             return this;
@@ -682,33 +860,63 @@ public class MainView extends JFrame {
 
     private void handleUserListUpdate(String userListStr) {
         SwingUtilities.invokeLater(() -> {
-            // Clear the list but keep the current user
-            userListModel.clear();
-            addUserToList(currentUser);
-
-            // If the list is empty, don't process further
-            if (userListStr.isEmpty()) {
-                return;
+            // Clear the online users set
+            onlineUserIds.clear();
+            
+            // Add current user to online users
+            onlineUserIds.add(currentUser.getId());
+            
+            // Update online status for all users
+            for (User user : allUsers) {
+                user.setOnline(user.getId() == currentUser.getId());
             }
-
-            // Parse and add other users
-            String[] userInfos = userListStr.split(",");
-            for (String userInfo : userInfos) {
-                String[] parts = userInfo.split(":");
-                if (parts.length == 2) {
-                    long userId = Long.parseLong(parts[0]);
-                    String userName = parts[1];
-
-                    // Skip current user as we already added them
-                    if (userId != currentUser.getId()) {
-                        User user = new User(userId, userName);
-                        addUserToList(user);
+            
+            // If the list is empty, don't process further
+            if (!userListStr.isEmpty()) {
+                // Parse and add other users
+                String[] userInfos = userListStr.split(",");
+                for (String userInfo : userInfos) {
+                    String[] parts = userInfo.split(":");
+                    if (parts.length == 2) {
+                        long userId = Long.parseLong(parts[0]);
+                        String userName = parts[1];
+                        
+                        // Add to online users set
+                        onlineUserIds.add(userId);
+                        
+                        // Update online status for this user
+                        for (User user : allUsers) {
+                            if (user.getId() == userId) {
+                                user.setOnline(true);
+                                break;
+                            }
+                        }
+                        
+                        // Check if user exists in all users list
+                        boolean userExists = false;
+                        for (User user : allUsers) {
+                            if (user.getId() == userId) {
+                                userExists = true;
+                                break;
+                            }
+                        }
+                        
+                        // If user doesn't exist, add to all users list
+                        if (!userExists) {
+                            User user = new User(userId, userName);
+                            user.setOnline(true);
+                            allUsers.add(user);
+                        }
                     }
                 }
             }
-
-            // Debug output
-            System.out.println("Updated user list. Total users: " + userListModel.size());
+            
+            // Update the user list based on current mode
+            if (showingAllUsers) {
+                updateUserListWithAllUsers();
+            } else {
+                updateUserListWithOnlineUsers();
+            }
         });
     }
 
@@ -717,15 +925,34 @@ public class MainView extends JFrame {
         if (parts.length == 2) {
             long userId = Long.parseLong(parts[0]);
             String userName = parts[1];
-
-            // Skip if it's the current user
-            if (userId != currentUser.getId()) {
-                User user = new User(userId, userName);
-                addUserToList(user);
-
-                // Add system message
-                addSystemMessage(userName + " 已加入聊天");
+            
+            // Add to online users set
+            onlineUserIds.add(userId);
+            
+            // Check if user exists in all users list
+            boolean userExists = false;
+            for (User user : allUsers) {
+                if (user.getId() == userId) {
+                    userExists = true;
+                    break;
+                }
             }
+            
+            // If user doesn't exist, add to all users list
+            if (!userExists) {
+                User user = new User(userId, userName);
+                allUsers.add(user);
+            }
+            
+            // Update the user list based on current mode
+            if (showingAllUsers) {
+                updateUserListWithAllUsers();
+            } else {
+                updateUserListWithOnlineUsers();
+            }
+            
+            // Add system message
+            addSystemMessage(userName + " 已加入聊天");
         }
     }
 
@@ -734,9 +961,17 @@ public class MainView extends JFrame {
         if (parts.length == 2) {
             long userId = Long.parseLong(parts[0]);
             String userName = parts[1];
-
-            removeUserFromList(userId);
-
+            
+            // Remove from online users set
+            onlineUserIds.remove(userId);
+            
+            // Update the user list based on current mode
+            if (showingAllUsers) {
+                updateUserListWithAllUsers();
+            } else {
+                updateUserListWithOnlineUsers();
+            }
+            
             // Add system message
             addSystemMessage(userName + " 已离开聊天");
         }
@@ -872,5 +1107,175 @@ public class MainView extends JFrame {
             });
             settingsView.setVisible(true);
         }
+    }
+
+    // 添加打开服务器列表的方法
+    private void openServerList() {
+        ServerDiscoveryDialog dialog = new ServerDiscoveryDialog(this);
+        dialog.setVisible(true);
+        
+        String selectedServer = dialog.getSelectedServer();
+        if (selectedServer != null) {
+            // 解析服务器地址和端口
+            String[] parts = selectedServer.split(":");
+            if (parts.length == 2) {
+                String host = parts[0];
+                int port = Integer.parseInt(parts[1]);
+                
+                // 断开当前连接
+                closeConnection();
+                
+                // 连接到新服务器
+                try {
+                    clientSocket = new Socket(host, port);
+                    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                    out = new PrintWriter(clientSocket.getOutputStream(), true);
+                    
+                    // 发送用户ID
+                    out.println(currentUser.getId());
+                    updateConnectionStatus(true);
+                    
+                    // 清空并重新添加当前用户到列表
+                    userListModel.clear();
+                    addUserToList(currentUser);
+                    
+                    // 请求用户列表
+                    out.println("GET_USERS");
+                    
+                    // 重新启动消息监听
+                    startMessageListening();
+                    
+                    // 更新设置中的服务器地址和端口
+                    Settings settings = Settings.getInstance();
+                    settings.setServerHost(host);
+                    settings.setServerPort(port);
+                    settings.saveSettings();
+                    
+                    JOptionPane.showMessageDialog(this, 
+                        "已连接到服务器: " + host + ":" + port, 
+                        "连接成功", 
+                        JOptionPane.INFORMATION_MESSAGE);
+                } catch (IOException e) {
+                    JOptionPane.showMessageDialog(this, 
+                        "无法连接到服务器: " + e.getMessage(), 
+                        "连接失败", 
+                        JOptionPane.ERROR_MESSAGE);
+                    updateConnectionStatus(false);
+                }
+            }
+        }
+    }
+
+    // Toggle between showing online users only and all users
+    private void toggleUserListMode() {
+        showingAllUsers = !showingAllUsers;
+        if (showingAllUsers) {
+            updateUserListWithAllUsers();
+        } else {
+            updateUserListWithOnlineUsers();
+        }
+    }
+
+    // Load all users from database
+    private void loadAllUsers() {
+        SwingWorker<List<User>, Void> worker = new SwingWorker<List<User>, Void>() {
+            @Override
+            protected List<User> doInBackground() throws Exception {
+                // Get all users from database
+                List<User> users = userDAO.getAllUsers();
+                
+                // Make sure current user is in the list
+                boolean currentUserFound = false;
+                for (User user : users) {
+                    if (user.getId() == currentUser.getId()) {
+                        currentUserFound = true;
+                        break;
+                    }
+                }
+                
+                if (!currentUserFound) {
+                    users.add(currentUser);
+                }
+                
+                return users;
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    allUsers = get();
+                    // Mark current user as online
+                    for (User user : allUsers) {
+                        if (user.getId() == currentUser.getId()) {
+                            user.setOnline(true);
+                            break;
+                        }
+                    }
+                    
+                    // If we're showing all users, update the list
+                    if (showingAllUsers) {
+                        updateUserListWithAllUsers();
+                    } else {
+                        updateUserListWithOnlineUsers();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        
+        worker.execute();
+    }
+
+    // Update user list to show all users
+    private void updateUserListWithAllUsers() {
+        SwingUtilities.invokeLater(() -> {
+            userListModel.clear();
+            for (User user : allUsers) {
+                userListModel.addElement(user);
+            }
+        });
+    }
+
+    // Update user list to show only online users
+    private void updateUserListWithOnlineUsers() {
+        SwingUtilities.invokeLater(() -> {
+            userListModel.clear();
+            for (User user : allUsers) {
+                if (onlineUserIds.contains(user.getId())) {
+                    userListModel.addElement(user);
+                }
+            }
+        });
+    }
+
+    // Add method to filter user list based on search text
+    private void filterUserList(String searchText) {
+        if (searchText.equals("搜索用户...") || searchText.isEmpty()) {
+            // Reset to normal view
+            if (showingAllUsers) {
+                updateUserListWithAllUsers();
+            } else {
+                updateUserListWithOnlineUsers();
+            }
+            return;
+        }
+        
+        // Filter users based on search text
+        SwingUtilities.invokeLater(() -> {
+            userListModel.clear();
+            
+            String lowerCaseSearch = searchText.toLowerCase();
+            
+            for (User user : allUsers) {
+                if (user.getName().toLowerCase().contains(lowerCaseSearch)) {
+                    // If showing only online users, check if user is online
+                    if (!showingAllUsers && !onlineUserIds.contains(user.getId())) {
+                        continue;
+                    }
+                    userListModel.addElement(user);
+                }
+            }
+        });
     }
 }

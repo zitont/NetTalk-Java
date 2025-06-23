@@ -4,6 +4,7 @@ public class User {
     private long id;
     private String name;
     private String password;
+    private boolean online;
     // 可根据需要添加更多字段：头像、创建时间等
 
     public User() {}
@@ -36,5 +37,13 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public boolean isOnline() {
+        return online;
+    }
+
+    public void setOnline(boolean online) {
+        this.online = online;
     }
 }

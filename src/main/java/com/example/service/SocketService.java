@@ -7,18 +7,29 @@ import java.util.concurrent.*;
 
 public class SocketService {
     private static final int PORT = 8888;
+    private static final int DISCOVERY_PORT = 8889;
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private final Map<Long, Socket> onlineUsers = new ConcurrentHashMap<>();
     private final Map<Long, PrintWriter> userWriters = new ConcurrentHashMap<>();
     private ServerSocket serverSocket;
-
+    private DatagramSocket discoverySocket;
+    private boolean isRunning = false;
+    
+    // Start the server with automatic discovery service
     public void startServer(int port) {
         final int serverPort = port > 0 ? port : PORT;
+        isRunning = true;
+        
+        // Start TCP server
         threadPool.submit(() -> {
             try {
                 serverSocket = new ServerSocket(serverPort);
                 System.out.println("Server started on port " + serverPort);
-                while (!Thread.currentThread().isInterrupted()) {
+                
+                // Start discovery service
+                startDiscoveryService();
+                
+                while (isRunning && !Thread.currentThread().isInterrupted()) {
                     Socket socket = serverSocket.accept();
                     handleClientConnection(socket);
                 }
@@ -31,7 +42,52 @@ public class SocketService {
             }
         });
     }
-
+    
+    // Start UDP discovery service to allow clients to find the server
+    private void startDiscoveryService() {
+        threadPool.submit(() -> {
+            try {
+                discoverySocket = new DatagramSocket(DISCOVERY_PORT);
+                byte[] buffer = new byte[256];
+                
+                System.out.println("Discovery service started on port " + DISCOVERY_PORT);
+                
+                while (isRunning && !Thread.currentThread().isInterrupted()) {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    discoverySocket.receive(packet);
+                    
+                    String message = new String(packet.getData(), 0, packet.getLength());
+                    if ("DISCOVER_SERVER".equals(message)) {
+                        // Get server's IP address
+                        String serverIP = InetAddress.getLocalHost().getHostAddress();
+                        String response = serverIP + ":" + serverSocket.getLocalPort();
+                        
+                        // Send response back to client
+                        byte[] responseData = response.getBytes();
+                        DatagramPacket responsePacket = new DatagramPacket(
+                            responseData, 
+                            responseData.length, 
+                            packet.getAddress(), 
+                            packet.getPort()
+                        );
+                        discoverySocket.send(responsePacket);
+                        
+                        System.out.println("Discovery request from " + packet.getAddress() + 
+                                          ", sent server info: " + response);
+                    }
+                }
+            } catch (IOException e) {
+                if (!Thread.currentThread().isInterrupted()) {
+                    System.err.println("Discovery service error: " + e.getMessage());
+                }
+            } finally {
+                if (discoverySocket != null && !discoverySocket.isClosed()) {
+                    discoverySocket.close();
+                }
+            }
+        });
+    }
+    
     private void handleClientConnection(Socket socket) {
         threadPool.submit(() -> {
             Long userId = null;
@@ -109,16 +165,25 @@ public class SocketService {
     }
 
     public void shutdown() {
+        isRunning = false;
         try {
+            // Close discovery socket
+            if (discoverySocket != null && !discoverySocket.isClosed()) {
+                discoverySocket.close();
+            }
+            
+            // Close all client connections
             for (Socket socket : onlineUsers.values()) {
                 closeSocket(socket);
             }
             onlineUsers.clear();
             userWriters.clear();
 
+            // Close server socket
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
             }
+            
             threadPool.shutdownNow();
             System.out.println("Server shutdown complete");
         } catch (IOException e) {

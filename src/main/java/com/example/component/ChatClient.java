@@ -1,8 +1,10 @@
 package com.example.component;
 
 import com.example.model.Settings;
+import com.example.util.ServerDiscovery;
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
 
 /**
  * 聊天客户端组件，负责与服务器的通信
@@ -166,5 +168,35 @@ public class ChatClient {
      */
     public interface ConnectionStatusListener {
         void onConnectionStatusChanged(boolean connected);
+    }
+
+    /**
+     * Discover and connect to a server in the local network
+     * @return true if connection successful, false otherwise
+     */
+    public boolean discoverAndConnect() {
+        try {
+            List<String> servers = ServerDiscovery.discoverServers();
+            if (servers.isEmpty()) {
+                if (statusListener != null) {
+                    statusListener.onConnectionStatusChanged(false);
+                }
+                return false;
+            }
+            
+            // Connect to the first server found
+            String serverInfo = servers.get(0);
+            String[] parts = serverInfo.split(":");
+            String host = parts[0];
+            int port = Integer.parseInt(parts[1]);
+            
+            return connect(host, port);
+        } catch (Exception e) {
+            System.err.println("Error discovering servers: " + e.getMessage());
+            if (statusListener != null) {
+                statusListener.onConnectionStatusChanged(false);
+            }
+            return false;
+        }
     }
 }
