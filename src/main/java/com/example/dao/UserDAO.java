@@ -4,8 +4,6 @@ import com.example.model.User;
 import com.example.util.DBUtil;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class UserDAO {
     public boolean register(User user) {
@@ -75,28 +73,6 @@ public class UserDAO {
             e.printStackTrace();
             return false;
         }
-    }
-
-    public List<User> getAllUsers() {
-        List<User> users = new ArrayList<>();
-        String sql = "SELECT * FROM user ORDER BY name";
-        
-        try (Connection conn = DBUtil.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            
-            while (rs.next()) {
-                User user = new User();
-                user.setId(rs.getLong("_id"));
-                user.setName(rs.getString("name"));
-                user.setPassword(rs.getString("password"));
-                users.add(user);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        
-        return users;
     }
 
 }

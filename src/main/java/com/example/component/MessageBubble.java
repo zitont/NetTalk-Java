@@ -310,43 +310,6 @@ public class MessageBubble extends JPanel {
      */
     public void setMessageBubbleListener(MessageBubbleListener listener) {
         this.bubbleListener = listener;
-        
-        // 添加鼠标监听器来触发事件
-        this.addMouseListener(new MouseAdapter() {
-            private long pressStartTime;
-            
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
-                    fireBubbleClicked();
-                } else if (e.getClickCount() == 2) {
-                    fireBubbleDoubleClicked();
-                }
-            }
-            
-            @Override
-            public void mousePressed(MouseEvent e) {
-                pressStartTime = System.currentTimeMillis();
-            }
-            
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                long pressDuration = System.currentTimeMillis() - pressStartTime;
-                if (pressDuration > 500) { // 长按超过500毫秒
-                    fireBubbleLongPressed();
-                }
-            }
-        });
-        
-        // 监听文本选择
-        if (textArea != null) {
-            textArea.addCaretListener(e -> {
-                String selectedText = textArea.getSelectedText();
-                if (selectedText != null && !selectedText.isEmpty() && bubbleListener != null) {
-                    bubbleListener.onTextSelected(MessageBubble.this, selectedText);
-                }
-            });
-        }
     }
     
     /**

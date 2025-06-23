@@ -14,9 +14,9 @@ import java.net.Socket;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicScrollBarUI;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import javax.swing.Timer;
+// import java.awt.event.ActionEvent;
+// import java.awt.event.ActionListener;
+// import javax.swing.Timer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,9 +54,6 @@ public class MainView extends JFrame {
     // 字体常量
     private static final Font CHINESE_FONT = new Font("Microsoft YaHei", Font.PLAIN, 14); // 微软雅黑
     private static final Font CHINESE_FONT_BOLD = new Font("Microsoft YaHei", Font.BOLD, 14); // 微软雅黑粗体
-
-    // 添加一个字段来跟踪当前显示的是哪个标签
-    private boolean showingAllUsers = false;
 
     public MainView(User user) {
         this.currentUser = user;
@@ -346,9 +343,6 @@ public class MainView extends JFrame {
             out.println(currentUser.getId());
             updateConnectionStatus(true); // 连接成功
             
-            // 设置当前用户为在线状态
-            com.example.controller.AuthController.setUserOnlineStatus(currentUser.getId(), true);
-            
             // Add current user to the list first
             addUserToList(currentUser);
             
@@ -363,11 +357,6 @@ public class MainView extends JFrame {
     private void closeConnection() {
         System.out.println("正在关闭连接...");
         try {
-            // 设置当前用户为离线状态
-            if (currentUser != null) {
-                com.example.controller.AuthController.setUserOnlineStatus(currentUser.getId(), false);
-            }
-            
             if (listeningThread != null) {
                 listeningThread.interrupt(); // 中断监听线程
             }
@@ -566,7 +555,7 @@ public class MainView extends JFrame {
         userListPanel.setBackground(BACKGROUND_COLOR);
         userListPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
 
-        // Create header with tabs for online/all users
+        // Create header
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(CHAT_BACKGROUND);
         headerPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -574,35 +563,10 @@ public class MainView extends JFrame {
             BorderFactory.createEmptyBorder(15, 15, 15, 15)
         ));
 
-        // Create tab panel
-        JPanel tabPanel = new JPanel(new GridLayout(1, 2));
-        tabPanel.setOpaque(false);
-        
-        JButton onlineUsersTab = new JButton("在线用户");
-        JButton allUsersTab = new JButton("所有用户");
-        
-        // Style tabs
-        styleTab(onlineUsersTab, true);
-        styleTab(allUsersTab, false);
-        
-        onlineUsersTab.addActionListener(e -> {
-            styleTab(onlineUsersTab, true);
-            styleTab(allUsersTab, false);
-            showingAllUsers = false;
-            showOnlineUsers();
-        });
-        
-        allUsersTab.addActionListener(e -> {
-            styleTab(onlineUsersTab, false);
-            styleTab(allUsersTab, true);
-            showingAllUsers = true;
-            showAllUsers();
-        });
-        
-        tabPanel.add(onlineUsersTab);
-        tabPanel.add(allUsersTab);
-        
-        headerPanel.add(tabPanel, BorderLayout.CENTER);
+        JLabel titleLabel = new JLabel("在线用户");
+        titleLabel.setFont(CHINESE_FONT_BOLD);
+        titleLabel.setForeground(TEXT_COLOR);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
 
         // Create user list
         userListModel = new DefaultListModel<>();
@@ -636,73 +600,10 @@ public class MainView extends JFrame {
         userListPanel.add(listScrollPane, BorderLayout.CENTER);
     }
 
-    // Helper method to style tabs
-    private void styleTab(JButton tab, boolean active) {
-        tab.setFont(CHINESE_FONT);
-        tab.setBorderPainted(false);
-        tab.setFocusPainted(false);
-        tab.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
-        if (active) {
-            tab.setForeground(PRIMARY_COLOR);
-            tab.setBackground(new Color(232, 240, 254));
-            tab.setFont(CHINESE_FONT_BOLD);
-        } else {
-            tab.setForeground(SECONDARY_TEXT);
-            tab.setBackground(CHAT_BACKGROUND);
-        }
-    }
-
-    // Show online users (current functionality)
-    private void showOnlineUsers() {
-        // Clear and request updated online user list
-        userListModel.clear();
-        addUserToList(currentUser);
-        out.println("GET_USERS");
-    }
-
-    // Show all registered users from database with online status
-    private void showAllUsers() {
-        SwingUtilities.invokeLater(() -> {
-            try {
-                // 使用缓存中的所有用户
-                Map<Long, User> cachedUsers = com.example.controller.AuthController.getAllCachedUsers();
-                
-                userListModel.clear();
-                
-                // 如果缓存为空，则从数据库加载
-                if (cachedUsers.isEmpty()) {
-                    com.example.dao.UserDAO userDAO = new com.example.dao.UserDAO();
-                    java.util.List<User> allUsers = userDAO.getAllUsers();
-                    
-                    for (User user : allUsers) {
-                        // 将用户添加到缓存
-                        com.example.controller.AuthController.getAllCachedUsers().put(user.getId(), user);
-                        userListModel.addElement(user);
-                    }
-                } else {
-                    // 使用缓存的用户，按名称排序
-                    java.util.List<User> sortedUsers = new java.util.ArrayList<>(cachedUsers.values());
-                    sortedUsers.sort((u1, u2) -> u1.getName().compareTo(u2.getName()));
-                    
-                    for (User user : sortedUsers) {
-                        userListModel.addElement(user);
-                    }
-                }
-                
-                System.out.println("已加载所有用户。总用户数: " + userListModel.size());
-            } catch (Exception e) {
-                e.printStackTrace();
-                addSystemMessage("加载用户列表失败");
-            }
-        });
-    }
-
     private class UserListCellRenderer extends JPanel implements ListCellRenderer<User> {
         private JLabel avatarLabel;
         private JLabel nameLabel;
         private JLabel statusDot;
-        private JLabel statusLabel;
 
         public UserListCellRenderer() {
             setLayout(new BorderLayout(10, 0));
@@ -740,7 +641,7 @@ public class MainView extends JFrame {
             };
             statusDot.setPreferredSize(new Dimension(6, 6));
 
-            statusLabel = new JLabel("在线");
+            JLabel statusLabel = new JLabel("在线");
             statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
             statusLabel.setForeground(SECONDARY_TEXT);
 
@@ -767,20 +668,7 @@ public class MainView extends JFrame {
             avatarLabel.setFont(new Font("微软雅黑", Font.BOLD, 12));
             avatarLabel.setForeground(Color.WHITE);
             avatarLabel.setOpaque(true);
-            
-            // 检查用户是否在线，改变头像颜色
-            boolean isOnline = com.example.controller.AuthController.isUserOnline(user.getId());
-            if (isOnline) {
-                avatarLabel.setBackground(PRIMARY_COLOR);
-                statusDot.setVisible(true);
-                statusLabel.setText("在线");
-                statusLabel.setForeground(SUCCESS_COLOR);
-            } else {
-                avatarLabel.setBackground(SECONDARY_TEXT);
-                statusDot.setVisible(false);
-                statusLabel.setText("离线");
-                statusLabel.setForeground(SECONDARY_TEXT);
-            }
+            avatarLabel.setBackground(PRIMARY_COLOR);
 
             if (isSelected) {
                 setBackground(new Color(232, 240, 254));
@@ -794,15 +682,6 @@ public class MainView extends JFrame {
 
     private void handleUserListUpdate(String userListStr) {
         SwingUtilities.invokeLater(() -> {
-            // 先将所有用户标记为离线
-            Map<Long, User> cachedUsers = com.example.controller.AuthController.getAllCachedUsers();
-            for (Long userId : cachedUsers.keySet()) {
-                // 除了当前用户
-                if (userId != currentUser.getId()) {
-                    com.example.controller.AuthController.setUserOnlineStatus(userId, false);
-                }
-            }
-            
             // Clear the list but keep the current user
             userListModel.clear();
             addUserToList(currentUser);
@@ -822,17 +701,7 @@ public class MainView extends JFrame {
 
                     // Skip current user as we already added them
                     if (userId != currentUser.getId()) {
-                        // 检查用户是否在缓存中
-                        User user = com.example.controller.AuthController.getUserFromCache(userId);
-                        if (user == null) {
-                            // 如果不在缓存中，创建新用户对象
-                            user = new User(userId, userName);
-                        }
-                        
-                        // 标记为在线
-                        com.example.controller.AuthController.setUserOnlineStatus(userId, true);
-                        
-                        // 添加到在线用户列表
+                        User user = new User(userId, userName);
                         addUserToList(user);
                     }
                 }
@@ -851,34 +720,12 @@ public class MainView extends JFrame {
 
             // Skip if it's the current user
             if (userId != currentUser.getId()) {
-                // 检查用户是否在缓存中
-                User user = com.example.controller.AuthController.getUserFromCache(userId);
-                if (user == null) {
-                    // 如果不在缓存中，创建新用户对象
-                    user = new User(userId, userName);
-                    // 可以选择将新用户添加到缓存
-                    // 但这里我们只是临时使用，不添加到缓存
-                }
-                
-                // 更新用户在线状态
-                com.example.controller.AuthController.setUserOnlineStatus(userId, true);
-                
-                // 添加到在线用户列表
+                User user = new User(userId, userName);
                 addUserToList(user);
-
-                // 如果当前显示的是所有用户，刷新列表以更新状态
-                refreshUserListIfNeeded();
 
                 // Add system message
                 addSystemMessage(userName + " 已加入聊天");
             }
-        }
-    }
-
-    // 根据需要刷新用户列表
-    private void refreshUserListIfNeeded() {
-        if (showingAllUsers) {
-            showAllUsers();
         }
     }
 
@@ -888,14 +735,7 @@ public class MainView extends JFrame {
             long userId = Long.parseLong(parts[0]);
             String userName = parts[1];
 
-            // 更新用户在线状态
-            com.example.controller.AuthController.setUserOnlineStatus(userId, false);
-            
-            // 从在线用户列表中移除
             removeUserFromList(userId);
-            
-            // 如果当前显示的是所有用户，刷新列表以更新状态
-            refreshUserListIfNeeded();
 
             // Add system message
             addSystemMessage(userName + " 已离开聊天");
@@ -1032,38 +872,5 @@ public class MainView extends JFrame {
             });
             settingsView.setVisible(true);
         }
-    }
-
-    /**
-     * 重新连接到服务器
-     * 当设置更改时调用此方法
-     */
-    public void reconnectToServer() {
-        SwingUtilities.invokeLater(() -> {
-            // 添加系统消息
-            addSystemMessage("正在应用新的服务器设置...");
-            
-            // 关闭现有连接
-            closeConnection();
-            
-            // 重新加载设置
-            Settings.getInstance().reloadSettings();
-            
-            // 延迟一秒后重新连接
-            Timer reconnectTimer = new Timer(1000, e -> {
-                // 重新连接
-                connectToServer();
-                
-                if (clientSocket != null && clientSocket.isConnected()) {
-                    addSystemMessage("已连接到新服务器: " + 
-                        Settings.getInstance().getServerHost() + ":" + 
-                        Settings.getInstance().getServerPort());
-                } else {
-                    addSystemMessage("连接新服务器失败，请检查设置");
-                }
-            });
-            reconnectTimer.setRepeats(false);
-            reconnectTimer.start();
-        });
     }
 }
