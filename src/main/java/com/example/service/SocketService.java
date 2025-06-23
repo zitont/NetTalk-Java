@@ -12,11 +12,12 @@ public class SocketService {
     private final Map<Long, PrintWriter> userWriters = new ConcurrentHashMap<>();
     private ServerSocket serverSocket;
 
-    public void startServer() {
+    public void startServer(int port) {
+        final int serverPort = port > 0 ? port : PORT;
         threadPool.submit(() -> {
             try {
-                serverSocket = new ServerSocket(PORT);
-                System.out.println("Server started on port " + PORT);
+                serverSocket = new ServerSocket(serverPort);
+                System.out.println("Server started on port " + serverPort);
                 while (!Thread.currentThread().isInterrupted()) {
                     Socket socket = serverSocket.accept();
                     handleClientConnection(socket);
@@ -58,6 +59,9 @@ public class SocketService {
                     if (message.equals("GET_USERS")) {
                         // Send user list to the requesting client
                         sendUserList(userId);
+                    } else if (message.startsWith("PM:")) {
+                        // 处理私聊消息
+                        handlePrivateMessage(userId, message.substring(3));
                     } else {
                         broadcastMessage(userId, message);
                     }
@@ -156,6 +160,24 @@ public class SocketService {
         String leftMessage = "USER_LEFT:" + userId + ":" + userName;
         for (PrintWriter writer : userWriters.values()) {
             writer.println(leftMessage);
+        }
+    }
+
+    // 处理私聊消息
+    private void handlePrivateMessage(long senderId, String message) {
+        // 私聊消息格式: 接收者ID:消息内容
+        String[] parts = message.split(":", 2);
+        if (parts.length == 2) {
+            long receiverId = Long.parseLong(parts[0]);
+            String content = parts[1];
+            
+            // 向接收者发送私聊消息
+            PrintWriter receiverWriter = userWriters.get(receiverId);
+            if (receiverWriter != null) {
+                // 发送格式: PM:发送者ID:消息内容
+                receiverWriter.println("PM:" + senderId + ":" + content);
+                System.out.println("Private message from " + senderId + " to " + receiverId + ": " + content);
+            }
         }
     }
 }

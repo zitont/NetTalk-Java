@@ -1,5 +1,6 @@
 package com.example.component;
 
+import com.example.model.Settings;
 import java.io.*;
 import java.net.Socket;
 

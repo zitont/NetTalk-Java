@@ -2,6 +2,9 @@ package com.example.view;
 
 import com.example.component.ChatPanel;
 import com.example.model.User;
+import com.example.model.Settings;
+import com.example.view.PrivateChatView;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -14,6 +17,8 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 // import java.awt.event.ActionEvent;
 // import java.awt.event.ActionListener;
 // import javax.swing.Timer;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainView extends JFrame {
     // 简化颜色方案
@@ -27,8 +32,8 @@ public class MainView extends JFrame {
     private static final Color SECONDARY_TEXT = new Color(108, 117, 125);  // 次要文本中灰色
     private static final Color BORDER_COLOR = new Color(222, 226, 230);  // 边框浅灰色
     private static final Color SUCCESS_COLOR = new Color(40, 167, 69);  // 成功绿色
-    
- 
+
+
 
     // 成员变量
     private JTextArea inputField;
@@ -61,14 +66,14 @@ public class MainView extends JFrame {
             @Override
             public void windowClosing(WindowEvent e) {
                 System.out.println("强制结束进程...");
-                
+
                 // 打印所有活动线程
                 System.out.println("当前活动线程:");
                 Thread.getAllStackTraces().keySet().forEach(thread -> {
-                    System.out.println(thread.getName() + " - 守护线程: " + thread.isDaemon() + 
+                    System.out.println(thread.getName() + " - 守护线程: " + thread.isDaemon() +
                                       " - 状态: " + thread.getState());
                 });
-                
+
                 // 尝试关闭连接，但不等待
                 try {
                     closeConnection();
@@ -110,7 +115,7 @@ public class MainView extends JFrame {
         add(userListPanel, BorderLayout.WEST);
         add(scrollPane, BorderLayout.CENTER);
         add(inputPanel, BorderLayout.SOUTH);
-        
+
         // 确保输入框可用
         SwingUtilities.invokeLater(() -> inputField.requestFocusInWindow());
     }
@@ -126,25 +131,42 @@ public class MainView extends JFrame {
         // 用户信息面板
         JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         userInfo.setBackground(CHAT_BACKGROUND);
-        
+
         // 用户头像（使用首字母）
         JLabel avatar = createUserAvatar(currentUser.getName());
         userInfo.add(avatar);
         userInfo.add(Box.createHorizontalStrut(12));
-        
+
         // 用户名和状态的垂直布局
         JPanel nameStatusPanel = new JPanel();
         nameStatusPanel.setLayout(new BoxLayout(nameStatusPanel, BoxLayout.Y_AXIS));
         nameStatusPanel.setOpaque(false);
-        
+
         JLabel nameLabel = new JLabel(currentUser.getName());
         nameLabel.setFont(new Font("微软雅黑", Font.BOLD, 16));
         nameLabel.setForeground(TEXT_COLOR);
         nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
+
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         statusPanel.setOpaque(false);
         
+        // 添加设置按钮
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actionPanel.setOpaque(false);
+        
+        JButton settingsButton = new JButton("设置");
+        settingsButton.setFont(CHINESE_FONT);
+        settingsButton.setForeground(PRIMARY_COLOR);
+        settingsButton.setBorderPainted(false);
+        settingsButton.setContentAreaFilled(false);
+        settingsButton.setFocusPainted(false);
+        settingsButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        settingsButton.addActionListener(e -> openSettings());
+        
+        actionPanel.add(settingsButton);
+        titleBar.add(actionPanel, BorderLayout.EAST);
+        
+        // 其余代码保持不变...
         JLabel statusDot = new JLabel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -157,19 +179,19 @@ public class MainView extends JFrame {
         };
         statusDot.setPreferredSize(new Dimension(8, 8));
         statusDot.setOpaque(false);
-        
+
         JLabel statusLabel = new JLabel("在线");
         statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
         statusLabel.setForeground(SECONDARY_TEXT);
-        
+
         statusPanel.add(statusDot);
         statusPanel.add(statusLabel);
-        
+
         nameStatusPanel.add(nameLabel);
         nameStatusPanel.add(statusPanel);
-        
+
         userInfo.add(nameStatusPanel);
-        
+
         titleBar.add(userInfo, BorderLayout.WEST);
         add(titleBar, BorderLayout.NORTH);
     }
@@ -181,21 +203,21 @@ public class MainView extends JFrame {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
+
                 // 绘制圆形背景
                 g2.setColor(PRIMARY_COLOR);
                 g2.fillOval(0, 0, getWidth(), getHeight());
-                
+
                 super.paintComponent(g);
                 g2.dispose();
             }
         };
-        
+
         avatar.setPreferredSize(new Dimension(40, 40));
         avatar.setFont(new Font("微软雅黑", Font.BOLD, 14));
         avatar.setForeground(Color.WHITE);
         avatar.setOpaque(false);
-        
+
         return avatar;
     }
 
@@ -216,15 +238,15 @@ public class MainView extends JFrame {
             SECONDARY_TEXT,
             CHINESE_FONT
         );
-        
+
         // 获取ChatPanel的滚动面板
         scrollPane = chatPanel.getScrollPane();
-        
+
         // 设置现代化滚动条
         JScrollBar verticalScrollBar = scrollPane.getVerticalScrollBar();
         verticalScrollBar.setUI(new ModernScrollBarUI());
         verticalScrollBar.setUnitIncrement(16);
-        
+
         // 设置首选大小，确保有足够的空间
         scrollPane.setPreferredSize(new Dimension(600, 400));
     }
@@ -250,15 +272,15 @@ public class MainView extends JFrame {
         inputField.setBackground(BACKGROUND_COLOR);
         inputField.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
         inputField.setEnabled(true); // 确保输入框启用
-        
+
         // 创建带滚动条的输入区域
         JScrollPane inputScrollPane = new JScrollPane(inputField);
         inputScrollPane.setBorder(BorderFactory.createEmptyBorder());
         inputScrollPane.setOpaque(false);
         inputScrollPane.getViewport().setOpaque(false);
-        
+
         inputWrapper.add(inputScrollPane, BorderLayout.CENTER);
-        
+
         // 添加文档监听器以启用/禁用发送按钮
         sendButton = createSendButton();
         inputField.getDocument().addDocumentListener(new DocumentListener() {
@@ -276,12 +298,12 @@ public class MainView extends JFrame {
             public void changedUpdate(DocumentEvent e) {
                 updateSendButton();
             }
-            
+
             private void updateSendButton() {
                 sendButton.setEnabled(!inputField.getText().trim().isEmpty());
             }
         });
-        
+
         // 简化回车键处理
         inputField.addKeyListener(new java.awt.event.KeyAdapter() {
             @Override
@@ -300,19 +322,20 @@ public class MainView extends JFrame {
                 }
             }
         });
-        
+
         // 添加发送按钮
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttonPanel.setOpaque(false);
         buttonPanel.add(sendButton);
-        
+
         inputPanel.add(inputWrapper, BorderLayout.CENTER);
         inputPanel.add(buttonPanel, BorderLayout.EAST);
     }
 
     private void connectToServer() {
         try {
-            clientSocket = new Socket("localhost", 8888);
+            Settings settings = Settings.getInstance();
+            clientSocket = new Socket(settings.getServerHost(), settings.getServerPort());
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             
@@ -337,22 +360,22 @@ public class MainView extends JFrame {
             if (listeningThread != null) {
                 listeningThread.interrupt(); // 中断监听线程
             }
-            
+
             if (out != null) {
                 out.close();
                 out = null;
             }
-            
+
             if (in != null) {
                 in.close();
                 in = null;
             }
-            
+
             if (clientSocket != null && !clientSocket.isClosed()) {
                 clientSocket.close();
                 clientSocket = null;
             }
-            
+
             System.out.println("连接已关闭");
         } catch (IOException e) {
             System.err.println("关闭连接时出错: " + e.getMessage());
@@ -375,16 +398,19 @@ public class MainView extends JFrame {
             try {
                 while ((message = in.readLine()) != null) {
                     if (message.startsWith("USER_LIST:")) {
-                        // Handle user list update
+                        // 处理用户列表更新
                         handleUserListUpdate(message.substring(10));
                     } else if (message.startsWith("USER_JOINED:")) {
-                        // Handle new user joined
+                        // 处理新用户加入
                         handleUserJoined(message.substring(12));
                     } else if (message.startsWith("USER_LEFT:")) {
-                        // Handle user left
+                        // 处理用户离开
                         handleUserLeft(message.substring(10));
+                    } else if (message.startsWith("PM:")) {
+                        // 处理私聊消息
+                        handlePrivateMessage(message.substring(3));
                     } else {
-                        // Handle regular message
+                        // 处理普通消息
                         addMessageBubble(message, false);
                     }
                 }
@@ -404,7 +430,7 @@ public class MainView extends JFrame {
             String[] parts = message.split(": ", 2);
             String username = parts[0];
             String content = parts.length > 1 ? parts[1] : message;
-            
+
             // 使用ChatPanel添加消息
             chatPanel.addMessage(content, isOwnMessage, isOwnMessage ? null : username);
         });
@@ -431,17 +457,17 @@ public class MainView extends JFrame {
             this.trackColor = CHAT_BACKGROUND;
             this.thumbHighlightColor = new Color(150, 150, 150);
         }
-        
+
         @Override
         protected JButton createDecreaseButton(int orientation) {
             return createZeroButton();
         }
-        
+
         @Override
         protected JButton createIncreaseButton(int orientation) {
             return createZeroButton();
         }
-        
+
         private JButton createZeroButton() {
             JButton button = new JButton();
             button.setPreferredSize(new Dimension(0, 0));
@@ -455,7 +481,7 @@ public class MainView extends JFrame {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(thumbColor);
-            g2.fillRoundRect(thumbBounds.x + 2, thumbBounds.y + 2, 
+            g2.fillRoundRect(thumbBounds.x + 2, thumbBounds.y + 2,
                            thumbBounds.width - 4, thumbBounds.height - 4, 6, 6);
             g2.dispose();
         }
@@ -471,19 +497,19 @@ public class MainView extends JFrame {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                Color bgColor = isEnabled() ? 
-                    (getModel().isPressed() ? PRIMARY_HOVER : PRIMARY_COLOR) : 
+
+                Color bgColor = isEnabled() ?
+                    (getModel().isPressed() ? PRIMARY_HOVER : PRIMARY_COLOR) :
                     SECONDARY_TEXT;
-                
+
                 g2.setColor(bgColor);
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                
+
                 super.paintComponent(g);
                 g2.dispose();
             }
         };
-        
+
         button.setFont(CHINESE_FONT_BOLD);
         button.setForeground(Color.WHITE);
         button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
@@ -491,7 +517,7 @@ public class MainView extends JFrame {
         button.setContentAreaFilled(false);
         button.setEnabled(false);
         button.addActionListener(e -> sendMessage());
-        
+
         return button;
     }
 
@@ -528,7 +554,7 @@ public class MainView extends JFrame {
         userListPanel.setPreferredSize(new Dimension(200, 0));
         userListPanel.setBackground(BACKGROUND_COLOR);
         userListPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
-        
+
         // Create header
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(CHAT_BACKGROUND);
@@ -536,23 +562,40 @@ public class MainView extends JFrame {
             BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR),
             BorderFactory.createEmptyBorder(15, 15, 15, 15)
         ));
-        
+
         JLabel titleLabel = new JLabel("在线用户");
         titleLabel.setFont(CHINESE_FONT_BOLD);
         titleLabel.setForeground(TEXT_COLOR);
         headerPanel.add(titleLabel, BorderLayout.WEST);
-        
+
         // Create user list
         userListModel = new DefaultListModel<>();
         userList = new JList<>(userListModel);
         userList.setCellRenderer(new UserListCellRenderer());
         userList.setBackground(BACKGROUND_COLOR);
         userList.setBorder(null);
-        
+
+        // 添加鼠标监听器处理用户点击
+        userList.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                if (evt.getClickCount() == 2) {
+                    int index = userList.locationToIndex(evt.getPoint());
+                    if (index >= 0) {
+                        User selectedUser = userListModel.getElementAt(index);
+                        // 不要和自己聊天
+                        if (selectedUser.getId() != currentUser.getId()) {
+                            openPrivateChat(selectedUser);
+                        }
+                    }
+                }
+            }
+        });
+
         JScrollPane listScrollPane = new JScrollPane(userList);
         listScrollPane.setBorder(null);
         listScrollPane.getViewport().setBackground(BACKGROUND_COLOR);
-        
+
         userListPanel.add(headerPanel, BorderLayout.NORTH);
         userListPanel.add(listScrollPane, BorderLayout.CENTER);
     }
@@ -561,31 +604,31 @@ public class MainView extends JFrame {
         private JLabel avatarLabel;
         private JLabel nameLabel;
         private JLabel statusDot;
-        
+
         public UserListCellRenderer() {
             setLayout(new BorderLayout(10, 0));
             setOpaque(true);
             setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
-            
+
             JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             leftPanel.setOpaque(false);
-            
+
             avatarLabel = new JLabel();
             avatarLabel.setPreferredSize(new Dimension(32, 32));
             leftPanel.add(avatarLabel);
-            
+
             JPanel rightPanel = new JPanel();
             rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
             rightPanel.setOpaque(false);
-            
+
             nameLabel = new JLabel();
             nameLabel.setFont(CHINESE_FONT);
             nameLabel.setForeground(TEXT_COLOR);
             nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-            
+
             JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
             statusPanel.setOpaque(false);
-            
+
             statusDot = new JLabel() {
                 @Override
                 protected void paintComponent(Graphics g) {
@@ -597,26 +640,26 @@ public class MainView extends JFrame {
                 }
             };
             statusDot.setPreferredSize(new Dimension(6, 6));
-            
+
             JLabel statusLabel = new JLabel("在线");
             statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
             statusLabel.setForeground(SECONDARY_TEXT);
-            
+
             statusPanel.add(statusDot);
             statusPanel.add(statusLabel);
-            
+
             rightPanel.add(nameLabel);
             rightPanel.add(statusPanel);
-            
+
             add(leftPanel, BorderLayout.WEST);
             add(rightPanel, BorderLayout.CENTER);
         }
-        
+
         @Override
-        public Component getListCellRendererComponent(JList<? extends User> list, User user, 
+        public Component getListCellRendererComponent(JList<? extends User> list, User user,
                                                     int index, boolean isSelected, boolean cellHasFocus) {
             nameLabel.setText(user.getName());
-            
+
             // Create avatar with user's initial
             String initial = getInitials(user.getName());
             avatarLabel.setText(initial);
@@ -626,13 +669,13 @@ public class MainView extends JFrame {
             avatarLabel.setForeground(Color.WHITE);
             avatarLabel.setOpaque(true);
             avatarLabel.setBackground(PRIMARY_COLOR);
-            
+
             if (isSelected) {
                 setBackground(new Color(232, 240, 254));
             } else {
                 setBackground(BACKGROUND_COLOR);
             }
-            
+
             return this;
         }
     }
@@ -642,12 +685,12 @@ public class MainView extends JFrame {
             // Clear the list but keep the current user
             userListModel.clear();
             addUserToList(currentUser);
-            
+
             // If the list is empty, don't process further
             if (userListStr.isEmpty()) {
                 return;
             }
-            
+
             // Parse and add other users
             String[] userInfos = userListStr.split(",");
             for (String userInfo : userInfos) {
@@ -655,7 +698,7 @@ public class MainView extends JFrame {
                 if (parts.length == 2) {
                     long userId = Long.parseLong(parts[0]);
                     String userName = parts[1];
-                    
+
                     // Skip current user as we already added them
                     if (userId != currentUser.getId()) {
                         User user = new User(userId, userName);
@@ -663,7 +706,7 @@ public class MainView extends JFrame {
                     }
                 }
             }
-            
+
             // Debug output
             System.out.println("Updated user list. Total users: " + userListModel.size());
         });
@@ -674,12 +717,12 @@ public class MainView extends JFrame {
         if (parts.length == 2) {
             long userId = Long.parseLong(parts[0]);
             String userName = parts[1];
-            
+
             // Skip if it's the current user
             if (userId != currentUser.getId()) {
                 User user = new User(userId, userName);
                 addUserToList(user);
-                
+
                 // Add system message
                 addSystemMessage(userName + " 已加入聊天");
             }
@@ -691,9 +734,9 @@ public class MainView extends JFrame {
         if (parts.length == 2) {
             long userId = Long.parseLong(parts[0]);
             String userName = parts[1];
-            
+
             removeUserFromList(userId);
-            
+
             // Add system message
             addSystemMessage(userName + " 已离开聊天");
         }
@@ -734,6 +777,100 @@ public class MainView extends JFrame {
         for (int i = 0; i < userListModel.size(); i++) {
             User user = userListModel.getElementAt(i);
             System.out.println("  - " + user.getId() + ": " + user.getName());
+        }
+    }
+
+    // 添加私聊窗口管理
+    private Map<Long, PrivateChatView> privateChatWindows = new HashMap<>();
+
+    // 打开私聊窗口
+    private void openPrivateChat(User targetUser) {
+        // 检查是否已经有与该用户的聊天窗口
+        if (!privateChatWindows.containsKey(targetUser.getId())) {
+            PrivateChatView chatView = new PrivateChatView(currentUser, targetUser, clientSocket);
+            privateChatWindows.put(targetUser.getId(), chatView);
+            chatView.setVisible(true);
+
+            // 当窗口关闭时从映射中移除
+            chatView.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent e) {
+                    privateChatWindows.remove(targetUser.getId());
+                }
+            });
+        } else {
+            // 如果窗口已存在，将其置于前台
+            privateChatWindows.get(targetUser.getId()).toFront();
+        }
+    }
+
+    // 处理私聊消息
+    private void handlePrivateMessage(String message) {
+        // 私聊消息格式: 发送者ID:消息内容
+        String[] parts = message.split(":", 2);
+        if (parts.length == 2) {
+            long senderId = Long.parseLong(parts[0]);
+            String content = parts[1];
+
+            // 查找发送者
+            User sender = findUserById(senderId);
+            if (sender != null) {
+                SwingUtilities.invokeLater(() -> {
+                    // 检查是否已有与该用户的聊天窗口
+                    if (privateChatWindows.containsKey(senderId)) {
+                        // 如果有，直接在窗口中显示消息
+                        privateChatWindows.get(senderId).receiveMessage(content);
+                    } else {
+                        // 如果没有，创建新窗口并显示消息
+                        PrivateChatView chatView = new PrivateChatView(currentUser, sender, clientSocket);
+                        privateChatWindows.put(senderId, chatView);
+                        chatView.setVisible(true);
+                        chatView.receiveMessage(content);
+
+                        // 当窗口关闭时从映射中移除
+                        chatView.addWindowListener(new WindowAdapter() {
+                            @Override
+                            public void windowClosed(WindowEvent e) {
+                                privateChatWindows.remove(senderId);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+    }
+
+    // 根据ID查找用户
+    private User findUserById(long userId) {
+        for (int i = 0; i < userListModel.size(); i++) {
+            User user = userListModel.getElementAt(i);
+            if (user.getId() == userId) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    // 添加打开设置页面的方法
+    // 添加一个静态变量来跟踪设置窗口实例
+    private static SettingsView settingsView = null;
+
+    private void openSettings() {
+        // 如果设置窗口已经存在，则将其置于前台
+        if (settingsView != null && settingsView.isDisplayable()) {
+            settingsView.toFront();
+            settingsView.requestFocus();
+        } else {
+            // 创建新的设置窗口
+            settingsView = new SettingsView();
+            // 添加窗口关闭监听器，在窗口关闭时清除引用
+            settingsView.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent e) {
+                    settingsView = null;
+                }
+            });
+            settingsView.setVisible(true);
         }
     }
 }
