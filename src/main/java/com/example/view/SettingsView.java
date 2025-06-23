@@ -165,15 +165,60 @@ public class SettingsView extends JFrame {
                 return;
             }
             
+            // 保存旧设置以检查是否有变化
+            String oldHost = settings.getServerHost();
+            int oldPort = settings.getServerPort();
+            
+            // 更新设置
             settings.setServerHost(host);
             settings.setServerPort(port);
             settings.setStartServerMode(serverMode);
             settings.saveSettings();
             
-            JOptionPane.showMessageDialog(this, "设置已保存，重启应用后生效", "成功", JOptionPane.INFORMATION_MESSAGE);
+            // 检查是否需要提示重新连接
+            boolean connectionSettingsChanged = !oldHost.equals(host) || oldPort != port;
+            
+            if (connectionSettingsChanged) {
+                int option = JOptionPane.showConfirmDialog(
+                    this,
+                    "连接设置已更改，是否立即重新连接服务器？",
+                    "重新连接",
+                    JOptionPane.YES_NO_OPTION
+                );
+                
+                if (option == JOptionPane.YES_OPTION) {
+                    // 通知所有打开的MainView重新连接
+                    notifyConnectionSettingsChanged();
+                } else {
+                    JOptionPane.showMessageDialog(
+                        this,
+                        "设置已保存，下次启动应用时生效",
+                        "成功",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+                }
+            } else {
+                JOptionPane.showMessageDialog(
+                    this,
+                    "设置已保存",
+                    "成功",
+                    JOptionPane.INFORMATION_MESSAGE
+                );
+            }
+            
             dispose();
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "端口号必须是有效的数字", "错误", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // 通知所有打开的MainView重新连接
+    private void notifyConnectionSettingsChanged() {
+        // 使用事件分发机制通知所有窗口
+        for (Window window : Window.getWindows()) {
+            if (window instanceof MainView) {
+                ((MainView) window).reconnectToServer();
+            }
         }
     }
 }
