@@ -1,6 +1,8 @@
 package com.example.model;
 
-import java.io.*;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Properties;
 
 public class Settings {
@@ -9,8 +11,7 @@ public class Settings {
     private int serverPort = 8888;
     private boolean startServerMode = false;
     private Properties properties = new Properties();
-    private static final String CONFIG_FILE_NAME = "config.properties";
-    private static final String CONFIG_FILE_PATH = "src/main/resources/" + CONFIG_FILE_NAME;
+    private static final String CONFIG_FILE_PATH = "src/main/resources/config.properties";
 
     private Settings() {
         loadProperties();
@@ -23,43 +24,15 @@ public class Settings {
         return instance;
     }
 
-    // 重新加载配置
-    public void reloadSettings() {
-        loadProperties();
-    }
-
     private void loadProperties() {
         try {
-            // 首先尝试从当前目录加载
-            File configFile = new File(CONFIG_FILE_NAME);
-            
-            // 如果当前目录没有配置文件，尝试从资源目录加载
-            if (!configFile.exists()) {
-                configFile = new File(CONFIG_FILE_PATH);
-            }
-            
-            // 如果文件存在，加载它
-            if (configFile.exists()) {
-                try (FileInputStream in = new FileInputStream(configFile)) {
-                    properties.load(in);
-                }
-            } else {
-                // 如果文件不存在，尝试从类路径加载
-                InputStream in = getClass().getResourceAsStream("/" + CONFIG_FILE_NAME);
-                if (in != null) {
-                    properties.load(in);
-                    in.close();
-                } else {
-                    System.err.println("无法找到配置文件，使用默认设置");
-                }
-            }
+            properties.load(new FileInputStream(CONFIG_FILE_PATH));
             
             // 从配置文件加载设置
             serverHost = properties.getProperty("server.host", "localhost");
             serverPort = Integer.parseInt(properties.getProperty("server.port", "8888"));
             startServerMode = Boolean.parseBoolean(properties.getProperty("server.start", "false"));
             
-            System.out.println("已加载配置: 服务器=" + serverHost + ":" + serverPort);
         } catch (IOException e) {
             System.err.println("无法加载配置文件，使用默认设置: " + e.getMessage());
         } catch (NumberFormatException e) {
@@ -74,18 +47,10 @@ public class Settings {
             properties.setProperty("server.port", String.valueOf(serverPort));
             properties.setProperty("server.start", String.valueOf(startServerMode));
             
-            // 首先尝试保存到当前目录
-            File configFile = new File(CONFIG_FILE_NAME);
-            
-            // 如果当前目录不可写，尝试保存到资源目录
-            if (!configFile.canWrite() && !configFile.exists()) {
-                configFile = new File(CONFIG_FILE_PATH);
-            }
-            
             // 保存到文件
-            try (FileOutputStream out = new FileOutputStream(configFile)) {
+            try (FileOutputStream out = new FileOutputStream(CONFIG_FILE_PATH)) {
                 properties.store(out, "Updated settings");
-                System.out.println("设置已保存到配置文件: " + configFile.getAbsolutePath());
+                System.out.println("设置已保存到配置文件");
             }
         } catch (IOException e) {
             System.err.println("保存设置时出错: " + e.getMessage());
