@@ -31,6 +31,13 @@
             <version>${okhttp.version}</version>
         </dependency>
 
+        <!-- JSON Library -->
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+        </dependency>
+
         <!-- Java Swing (included in JDK) -->
         <dependency>
             <groupId>org.openjfx</groupId>

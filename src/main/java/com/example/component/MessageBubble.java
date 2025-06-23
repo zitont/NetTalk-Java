@@ -4,6 +4,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.geom.RoundRectangle2D;
+import com.example.service.AIService;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import javax.swing.SwingWorker;
 
 /**
  * 消息气泡组件
@@ -146,7 +150,11 @@ public class MessageBubble extends JPanel {
         return paragraphs.length;
     }
 
-    // 创建文本右键菜单
+    /**
+     * 创建文本右键菜单
+     * @param textArea 文本区域
+     * @return 右键菜单
+     */
     private JPopupMenu createTextPopupMenu(JTextArea textArea) {
         JPopupMenu popupMenu = new JPopupMenu();
         
@@ -168,6 +176,16 @@ public class MessageBubble extends JPanel {
         // 分隔线
         popupMenu.addSeparator();
         
+        // 翻译文本
+        JMenuItem translateItem = new JMenuItem("翻译");
+        translateItem.addActionListener(e -> {
+            translateBubbleContent();
+        });
+        popupMenu.add(translateItem);
+        
+        // 分隔线
+        popupMenu.addSeparator();
+        
         // 选择全部
         JMenuItem selectAllItem = new JMenuItem("全选");
         selectAllItem.addActionListener(e -> {
@@ -176,6 +194,114 @@ public class MessageBubble extends JPanel {
         popupMenu.add(selectAllItem);
         
         return popupMenu;
+    }
+
+    /**
+     * 翻译气泡内容
+     */
+    public void translateBubbleContent() {
+        // 如果已经触发了翻译，不再重复翻译
+        if (getClientProperty("translating") != null && (boolean) getClientProperty("translating")) {
+            return;
+        }
+        
+        // 标记正在翻译
+        putClientProperty("translating", true);
+        
+        // 创建一个SwingWorker来执行翻译，避免阻塞UI线程
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // 使用AIService翻译文本
+                AIService aiService = new AIService();
+                return aiService.translateText(content, "zh-CN");
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    String translatedText = get();
+                    if (translatedText != null && !translatedText.isEmpty()) {
+                        // 创建翻译结果气泡
+                        createTranslationBubble(translatedText);
+                    }
+                } catch (Exception e) {
+                    System.err.println("翻译出错: " + e.getMessage());
+                } finally {
+                    // 标记翻译完成
+                    putClientProperty("translating", false);
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * 创建翻译结果气泡
+     * @param translatedText 翻译后的文本
+     */
+    private void createTranslationBubble(String translatedText) {
+        // 获取当前气泡所在的容器
+        Container parent = getParent();
+        if (parent == null) return;
+        
+        // 创建翻译气泡 - 使用浅色调
+        Color translationBubbleColor = isOwnMessage ? 
+                new Color(bubbleColor.getRed(), bubbleColor.getGreen(), bubbleColor.getBlue(), 200) : 
+                new Color(230, 230, 230);
+        
+        MessageBubble translationBubble = new MessageBubble(
+                translatedText,
+                isOwnMessage,
+                translationBubbleColor,
+                textColor,
+                new Font(textFont.getName(), Font.ITALIC, textFont.getSize() - 1)
+        );
+        
+        // 添加标识，防止翻译气泡再次被翻译
+        translationBubble.putClientProperty("isTranslation", true);
+        
+        // 获取当前气泡在父容器中的索引
+        int index = -1;
+        Component[] components = parent.getComponents();
+        for (int i = 0; i < components.length; i++) {
+            if (components[i] == this) {
+                index = i;
+                break;
+            }
+        }
+        
+        // 如果找到索引，在当前气泡后添加翻译气泡
+        if (index != -1 && parent instanceof JPanel) {
+            JPanel panel = (JPanel) parent;
+            
+            // 检查是否已经有翻译气泡
+            boolean hasTranslation = false;
+            if (index + 1 < components.length) {
+                Component nextComponent = components[index + 1];
+                if (nextComponent instanceof MessageBubble && 
+                    ((MessageBubble) nextComponent).getClientProperty("isTranslation") != null) {
+                    // 替换现有的翻译气泡
+                    panel.remove(nextComponent);
+                    panel.add(translationBubble, index + 1);
+                    hasTranslation = true;
+                }
+            }
+            
+            // 如果没有现有的翻译气泡，添加新的
+            if (!hasTranslation) {
+                panel.add(translationBubble, index + 1);
+            }
+            
+            // 重新布局
+            panel.revalidate();
+            panel.repaint();
+            
+            // 如果在ChatPanel中，滚动到底部
+            Container topContainer = SwingUtilities.getAncestorOfClass(ChatPanel.class, panel);
+            if (topContainer instanceof ChatPanel) {
+                ((ChatPanel) topContainer).scrollToBottom();
+            }
+        }
     }
 
     /**

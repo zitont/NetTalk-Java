@@ -205,8 +205,14 @@ public class LoginView extends JFrame {
     }
 
     private void handleLogin() {
-        String username = usernameField.getText();
-        String password = new String(passwordField.getPassword());
+        String username = usernameField.getText().trim();
+        String password = new String(passwordField.getPassword()).trim();
+
+        // 验证输入不为空
+        if (username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "用户名和密码不能为空", "输入错误", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         if (authController.login(username, password)) {
             openMainView(authController.getCurrentUser());
@@ -216,8 +222,14 @@ public class LoginView extends JFrame {
     }
 
     private void handleRegister() {
-        String username = usernameField.getText();
-        String password = new String(passwordField.getPassword());
+        String username = usernameField.getText().trim();
+        String password = new String(passwordField.getPassword()).trim();
+
+        // 验证输入不为空
+        if (username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "用户名和密码不能为空", "输入错误", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         if (authController.register(username, password)) {
             JOptionPane.showMessageDialog(this, "注册成功，请登录", "成功", JOptionPane.INFORMATION_MESSAGE);

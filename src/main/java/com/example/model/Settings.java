@@ -80,4 +80,23 @@ public class Settings {
     public void setStartServerMode(boolean startServerMode) {
         this.startServerMode = startServerMode;
     }
+
+    /**
+     * 获取属性值
+     * @param key 属性键
+     * @param defaultValue 默认值
+     * @return 属性值，如果不存在则返回默认值
+     */
+    public String getProperty(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+
+    /**
+     * 设置属性值
+     * @param key 属性键
+     * @param value 属性值
+     */
+    public void setProperty(String key, String value) {
+        properties.setProperty(key, value);
+    }
 }
