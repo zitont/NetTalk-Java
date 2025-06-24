@@ -3,7 +3,6 @@ package com.example.view;
 import com.example.component.ChatPanel;
 import com.example.model.User;
 import com.example.model.Settings;
-import com.example.view.PrivateChatView;
 import com.example.dao.UserDAO;
 
 import javax.swing.*;
@@ -14,6 +13,7 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.io.*;
 import java.net.Socket;
+import javax.swing.border.AbstractBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicScrollBarUI;
@@ -23,19 +23,20 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.function.BiConsumer;
 
 public class MainView extends JFrame {
-    // 简化颜色方案
-    private static final Color PRIMARY_COLOR = new Color(64, 123, 255);  // 主色调蓝色
-    private static final Color PRIMARY_HOVER = new Color(45, 106, 255);  // 悬停时的蓝色
-    private static final Color BACKGROUND_COLOR = new Color(248, 249, 250);  // 浅灰背景
-    private static final Color CHAT_BACKGROUND = Color.WHITE;  // 聊天区域白色背景
-    private static final Color SENT_BUBBLE_COLOR = new Color(64, 123, 255);  // 发送消息气泡蓝色
-    private static final Color RECEIVED_BUBBLE_COLOR = new Color(240, 242, 245);  // 接收消息气泡浅灰色
-    private static final Color TEXT_COLOR = new Color(33, 37, 41);  // 主文本深灰色
-    private static final Color SECONDARY_TEXT = new Color(108, 117, 125);  // 次要文本中灰色
-    private static final Color BORDER_COLOR = new Color(222, 226, 230);  // 边框浅灰色
-    private static final Color SUCCESS_COLOR = new Color(40, 167, 69);  // 成功绿色
+    // 更现代的颜色方案
+    private static final Color PRIMARY_COLOR = new Color(56, 129, 244);  // 更鲜亮的蓝色
+    private static final Color PRIMARY_HOVER = new Color(25, 103, 210);  // 更深的悬停蓝色
+    private static final Color BACKGROUND_COLOR = new Color(250, 250, 252);  // 更柔和的背景色
+    private static final Color CHAT_BACKGROUND = Color.WHITE;  // 保持白色背景
+    private static final Color SENT_BUBBLE_COLOR = new Color(56, 129, 244);  // 匹配主色调
+    private static final Color RECEIVED_BUBBLE_COLOR = new Color(245, 245, 247);  // 更柔和的灰色
+    private static final Color TEXT_COLOR = new Color(30, 30, 30);  // 更深的文本色
+    private static final Color SECONDARY_TEXT = new Color(115, 115, 125);  // 更现代的次要文本色
+    private static final Color BORDER_COLOR = new Color(230, 230, 235);  // 更柔和的边框色
+    private static final Color SUCCESS_COLOR = new Color(46, 184, 92);  // 更鲜亮的绿色
 
 
 
@@ -131,13 +132,19 @@ public class MainView extends JFrame {
 
         // 确保输入框可用
         SwingUtilities.invokeLater(() -> inputField.requestFocusInWindow());
+
+        // 添加窗口阴影和圆角效果
+        getRootPane().setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(0, 0, 0, 20), 1),
+            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+        ));
     }
 
     private void initTitleBar() {
         JPanel titleBar = new JPanel(new BorderLayout());
         titleBar.setBackground(CHAT_BACKGROUND);
         titleBar.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR),
+            BorderFactory.createMatteBorder(0, 0, 2, 0, BORDER_COLOR),
             BorderFactory.createEmptyBorder(15, 20, 15, 20)
         ));
 
@@ -145,8 +152,8 @@ public class MainView extends JFrame {
         JPanel userInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         userInfo.setBackground(CHAT_BACKGROUND);
 
-        // 用户头像（使用首字母）
-        JLabel avatar = createUserAvatar(currentUser.getName());
+        // 使用方形头像
+        JLabel avatar = createSquareAvatar(currentUser.getName(), 40);
         userInfo.add(avatar);
         userInfo.add(Box.createHorizontalStrut(12));
 
@@ -163,33 +170,6 @@ public class MainView extends JFrame {
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         statusPanel.setOpaque(false);
         
-        // 添加设置按钮和服务器列表按钮
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        actionPanel.setOpaque(false);
-        
-        JButton serverListButton = new JButton("服务器列表");
-        serverListButton.setFont(CHINESE_FONT);
-        serverListButton.setForeground(PRIMARY_COLOR);
-        serverListButton.setBorderPainted(false);
-        serverListButton.setContentAreaFilled(false);
-        serverListButton.setFocusPainted(false);
-        serverListButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        serverListButton.addActionListener(e -> openServerList());
-        
-        JButton settingsButton = new JButton("设置");
-        settingsButton.setFont(CHINESE_FONT);
-        settingsButton.setForeground(PRIMARY_COLOR);
-        settingsButton.setBorderPainted(false);
-        settingsButton.setContentAreaFilled(false);
-        settingsButton.setFocusPainted(false);
-        settingsButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        settingsButton.addActionListener(e -> openSettings());
-        
-        actionPanel.add(serverListButton);
-        actionPanel.add(settingsButton);
-        titleBar.add(actionPanel, BorderLayout.EAST);
-        
-        // 其余代码保持不变...
         JLabel statusDot = new JLabel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -215,40 +195,71 @@ public class MainView extends JFrame {
 
         userInfo.add(nameStatusPanel);
 
+        // 添加设置按钮和服务器列表按钮
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actionPanel.setOpaque(false);
+        
+        JButton serverListButton = new JButton("服务器列表");
+        serverListButton.setFont(CHINESE_FONT);
+        serverListButton.setForeground(PRIMARY_COLOR);
+        serverListButton.setBorderPainted(false);
+        serverListButton.setContentAreaFilled(false);
+        serverListButton.setFocusPainted(false);
+        serverListButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        serverListButton.addActionListener(e -> openServerList());
+        
+        JButton settingsButton = new JButton("设置");
+        settingsButton.setFont(CHINESE_FONT);
+        settingsButton.setForeground(PRIMARY_COLOR);
+        settingsButton.setBorderPainted(false);
+        settingsButton.setContentAreaFilled(false);
+        settingsButton.setFocusPainted(false);
+        settingsButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        settingsButton.addActionListener(e -> openSettings());
+        
+        actionPanel.add(serverListButton);
+        actionPanel.add(settingsButton);
+        
         titleBar.add(userInfo, BorderLayout.WEST);
+        titleBar.add(actionPanel, BorderLayout.EAST);
         add(titleBar, BorderLayout.NORTH);
     }
 
-    private JLabel createUserAvatar(String name) {
-        String initials = getInitials(name);
-        JLabel avatar = new JLabel(initials, SwingConstants.CENTER) {
+    // 创建统一的方形头像方法 - 手动绘制文本
+    private JLabel createSquareAvatar(String name, int size) {
+        final String initial = getInitials(name);
+        
+        JLabel avatar = new JLabel() {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // 绘制圆形背景
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                
+                // 绘制方形背景，带圆角
                 g2.setColor(PRIMARY_COLOR);
-                g2.fillOval(0, 0, getWidth(), getHeight());
-
-                super.paintComponent(g);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                
+                // 手动绘制文本
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("微软雅黑", Font.BOLD, getWidth() / 2));
+                
+                // 计算文本位置以居中显示
+                FontMetrics fm = g2.getFontMetrics();
+                int textWidth = fm.stringWidth(initial);
+                int textHeight = fm.getHeight();
+                int x = (getWidth() - textWidth) / 2;
+                int y = (getHeight() - textHeight) / 2 + fm.getAscent();
+                
+                g2.drawString(initial, x, y);
                 g2.dispose();
             }
         };
-
-        avatar.setPreferredSize(new Dimension(40, 40));
-        avatar.setFont(new Font("微软雅黑", Font.BOLD, 14));
-        avatar.setForeground(Color.WHITE);
+        
+        avatar.setPreferredSize(new Dimension(size, size));
         avatar.setOpaque(false);
-
+        
         return avatar;
-    }
-
-    private String getInitials(String name) {
-        if (name == null || name.isEmpty()) {
-            return "?";
-        }
-        return name.substring(0, 1).toUpperCase();
     }
 
     private void initChatPanel() {
@@ -272,30 +283,48 @@ public class MainView extends JFrame {
 
         // 设置首选大小，确保有足够的空间
         scrollPane.setPreferredSize(new Dimension(600, 400));
+
+        // 设置转发消息监听器
+        chatPanel.setForwardMessageListener((content, isOwnMessage) -> {
+            // 获取在线用户列表，排除当前用户
+            List<User> forwardUsers = new ArrayList<>();
+            for (User user : allUsers) {
+                if (user.getId() != currentUser.getId() && onlineUserIds.contains(user.getId())) {
+                    forwardUsers.add(user);
+                }
+            }
+            
+            // 显示转发对话框
+            chatPanel.showForwardDialog(content, forwardUsers, (messageContent, targetUser) -> {
+                // 执行转发操作
+                forwardMessage(messageContent, targetUser);
+            });
+        });
     }
 
     private void initInputPanel() {
-        inputPanel = new JPanel(new BorderLayout());
-        inputPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 20, 20));
-        inputPanel.setBackground(CHAT_BACKGROUND);
-
-        // 创建输入框容器
+        inputPanel = new JPanel(new BorderLayout(10, 0));
+        inputPanel.setBackground(BACKGROUND_COLOR);
+        inputPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_COLOR),
+            BorderFactory.createEmptyBorder(15, 15, 15, 15)
+        ));
+        
+        // 创建更现代的输入框
+        inputField = new JTextArea(3, 20);
+        inputField.setFont(CHINESE_FONT);
+        inputField.setLineWrap(true);
+        inputField.setWrapStyleWord(true);
+        
+        // 添加圆角和轻微阴影的输入框面板
         JPanel inputWrapper = new JPanel(new BorderLayout());
+        inputWrapper.setBackground(CHAT_BACKGROUND);
         inputWrapper.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
-            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)
         ));
-        inputWrapper.setBackground(BACKGROUND_COLOR);
-
-        // 将JTextField改为JTextArea以支持多行输入
-        inputField = new JTextArea(3, 20);
-        inputField.setFont(CHINESE_FONT); // 使用支持中文的字体
-        inputField.setLineWrap(true); // 自动换行
-        inputField.setWrapStyleWord(true); // 按单词边界换行
-        inputField.setBackground(BACKGROUND_COLOR);
-        inputField.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
-        inputField.setEnabled(true); // 确保输入框启用
-
+        inputWrapper.add(inputField, BorderLayout.CENTER);
+        
         // 创建带滚动条的输入区域
         JScrollPane inputScrollPane = new JScrollPane(inputField);
         inputScrollPane.setBorder(BorderFactory.createEmptyBorder());
@@ -461,8 +490,25 @@ public class MainView extends JFrame {
             String username = parts[0];
             String content = parts.length > 1 ? parts[1] : message;
 
+            // 如果是系统生成的用户名格式 (User + 数字)，尝试查找真实用户名
+            if (!isOwnMessage && username.matches("User\\d+")) {
+                try {
+                    // 从用户名中提取用户ID
+                    long userId = Long.parseLong(username.substring(4));
+                    
+                    // 在用户列表中查找对应的用户
+                    User user = findUserById(userId);
+                    if (user != null) {
+                        username = user.getName();
+                    }
+                } catch (NumberFormatException | IndexOutOfBoundsException e) {
+                    // 如果解析失败，保留原始用户名
+                    System.err.println("无法解析用户ID: " + e.getMessage());
+                }
+            }
+
             // 使用ChatPanel添加消息
-            chatPanel.addMessage(content, isOwnMessage, isOwnMessage ? null : username);
+            chatPanel.addMessage(content, isOwnMessage, isOwnMessage ? currentUser.getName() : username);
         });
     }
 
@@ -528,12 +574,22 @@ public class MainView extends JFrame {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+                // 渐变背景效果
                 Color bgColor = isEnabled() ?
                     (getModel().isPressed() ? PRIMARY_HOVER : PRIMARY_COLOR) :
                     SECONDARY_TEXT;
-
-                g2.setColor(bgColor);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, bgColor,
+                    0, getHeight(), new Color(
+                        Math.max(0, bgColor.getRed() - 20),
+                        Math.max(0, bgColor.getGreen() - 20),
+                        Math.max(0, bgColor.getBlue() - 20)
+                    )
+                );
+                
+                g2.setPaint(gradient);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20); // 更大的圆角
 
                 super.paintComponent(g);
                 g2.dispose();
@@ -542,7 +598,7 @@ public class MainView extends JFrame {
 
         button.setFont(CHINESE_FONT_BOLD);
         button.setForeground(Color.WHITE);
-        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        button.setBorder(BorderFactory.createEmptyBorder(12, 28, 12, 28)); // 更大的内边距
         button.setFocusPainted(false);
         button.setContentAreaFilled(false);
         button.setEnabled(false);
@@ -567,30 +623,20 @@ public class MainView extends JFrame {
         SwingUtilities.invokeLater(() -> inputField.requestFocusInWindow());
     }
 
-    // 消息数据类
-    // 添加一个main方法测试窗口关闭
-    // public static void main(String[] args) {
-    //     // 仅用于测试窗口关闭功能
-    //     SwingUtilities.invokeLater(() -> {
-    //         User testUser = new User(1L, "TestUser");
-    //         testUser.setPassword(""); // 如果需要设置密码
-    //         MainView view = new MainView(testUser);
-    //         view.setVisible(true);
-    //     });
-    // }
+
 
     private void initUserListPanel() {
         userListPanel = new JPanel(new BorderLayout());
-        userListPanel.setPreferredSize(new Dimension(220, 0));
-        userListPanel.setBackground(BACKGROUND_COLOR);
+        userListPanel.setPreferredSize(new Dimension(240, 0)); // 稍微宽一点
+        userListPanel.setBackground(Color.WHITE); // 白色背景更现代
         userListPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
 
-        // Create header with toggle button
+        // 创建标题面板
         JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(CHAT_BACKGROUND);
+        headerPanel.setBackground(Color.WHITE); // 白色背景
         headerPanel.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
+            BorderFactory.createEmptyBorder(18, 18, 18, 18) // 更大的内边距
         ));
 
         // Create title with user count
@@ -641,7 +687,7 @@ public class MainView extends JFrame {
         searchField.setFont(CHINESE_FONT);
         searchField.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(BORDER_COLOR, 1, true),
-            BorderFactory.createEmptyBorder(6, 10, 6, 10)
+            BorderFactory.createEmptyBorder(10, 12, 10, 12) // 更大的内边距
         ));
         searchField.setBackground(Color.WHITE);
         searchField.setForeground(TEXT_COLOR);
@@ -745,7 +791,7 @@ public class MainView extends JFrame {
         public UserListCellRenderer() {
             setLayout(new BorderLayout(10, 0));
             setOpaque(true);
-            setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+            setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
             // Avatar panel (left side)
             JPanel avatarPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -757,13 +803,28 @@ public class MainView extends JFrame {
                 protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                     
-                    // Draw circle background
+                    // 绘制方形背景，带圆角
                     g2.setColor(PRIMARY_COLOR);
-                    g2.fillOval(0, 0, getWidth(), getHeight());
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     
-                    // Draw text
-                    super.paintComponent(g);
+                    // 手动绘制文本
+                    String text = getText();
+                    if (text != null && !text.isEmpty()) {
+                        g2.setColor(Color.WHITE);
+                        g2.setFont(getFont());
+                        
+                        // 计算文本位置以居中显示
+                        FontMetrics fm = g2.getFontMetrics();
+                        int textWidth = fm.stringWidth(text);
+                        int textHeight = fm.getHeight();
+                        int x = (getWidth() - textWidth) / 2;
+                        int y = (getHeight() - textHeight) / 2 + fm.getAscent();
+                        
+                        g2.drawString(text, x, y);
+                    }
+                    
                     g2.dispose();
                 }
             };
@@ -824,7 +885,7 @@ public class MainView extends JFrame {
             nameLabel.setText(user.getName());
 
             // Create avatar with user's initial
-            String initial = getInitials(user.getName());
+            String initial = MainView.this.getInitials(user.getName());
             avatarLabel.setText(initial);
 
             // Check if user is online
@@ -1277,5 +1338,33 @@ public class MainView extends JFrame {
                 }
             }
         });
+    }
+
+    private String getInitials(String name) {
+        if (name == null || name.isEmpty()) {
+            return "?";
+        }
+        return name.substring(0, 1).toUpperCase();
+    }
+
+    /**
+     * 转发消息给指定用户
+     * @param content 消息内容
+     * @param targetUser 目标用户
+     */
+    private void forwardMessage(String content, User targetUser) {
+        if (out != null) {
+            // 发送私聊消息格式: PM:接收者ID:消息内容
+            String pmCommand = "PM:" + targetUser.getId() + ":" + content;
+            out.println(pmCommand);
+            
+            // 显示转发成功提示
+            chatPanel.addSystemMessage("已转发消息给 " + targetUser.getName());
+            
+            // 如果已有与该用户的私聊窗口，也在窗口中显示消息
+            if (privateChatWindows.containsKey(targetUser.getId())) {
+                privateChatWindows.get(targetUser.getId()).sendMessage(content);
+            }
+        }
     }
 }

@@ -11,6 +11,7 @@ public class SocketService {
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private final Map<Long, Socket> onlineUsers = new ConcurrentHashMap<>();
     private final Map<Long, PrintWriter> userWriters = new ConcurrentHashMap<>();
+    private final Map<Long, String> userNames = new ConcurrentHashMap<>();
     private ServerSocket serverSocket;
     private DatagramSocket discoverySocket;
     private boolean isRunning = false;
@@ -101,19 +102,27 @@ public class SocketService {
                 if (idLine == null) throw new IOException("Client disconnected");
 
                 userId = Long.parseLong(idLine);
-                // Get user name from database or use default
-                userName = "User" + userId; // You can replace this with actual user name lookup
+                
+                // 从数据库获取真实用户名
+                // 这里需要添加数据库查询代码，暂时使用默认名称
+                userName = getUserNameFromDatabase(userId);
+                if (userName == null || userName.isEmpty()) {
+                    userName = "User" + userId;
+                }
                 
                 onlineUsers.put(userId, socket);
                 userWriters.put(userId, out);
                 
-                // Notify all users about the new user
+                // 保存用户名到映射中
+                userNames.put(userId, userName);
+                
+                // 通知所有用户有新用户加入
                 broadcastUserJoined(userId, userName);
 
                 String message;
                 while ((message = in.readLine()) != null) {
                     if (message.equals("GET_USERS")) {
-                        // Send user list to the requesting client
+                        // 发送用户列表给请求的客户端
                         sendUserList(userId);
                     } else if (message.startsWith("PM:")) {
                         // 处理私聊消息
@@ -129,7 +138,8 @@ public class SocketService {
                 if (userId != null) {
                     onlineUsers.remove(userId);
                     userWriters.remove(userId);
-                    // Notify all users that this user has left
+                    userNames.remove(userId);
+                    // 通知所有用户该用户已离开
                     broadcastUserLeft(userId, userName != null ? userName : "User" + userId);
                     System.out.println("User " + userId + " disconnected");
                 }
@@ -139,7 +149,10 @@ public class SocketService {
     }
 
     private void broadcastMessage(long senderId, String content) {
-        String formattedMessage = "User" + senderId + ": " + content;
+        // 使用真实用户名
+        String senderName = userNames.getOrDefault(senderId, "User" + senderId);
+        String formattedMessage = senderName + ": " + content;
+        
         for (Map.Entry<Long, PrintWriter> entry : userWriters.entrySet()) {
             if (entry.getKey() != senderId) {
                 sendMessage(entry.getKey(), formattedMessage);
@@ -191,7 +204,7 @@ public class SocketService {
         }
     }
 
-    // Send the list of online users to a specific user
+    // 向特定用户发送在线用户列表
     private void sendUserList(long requestingUserId) {
         PrintWriter writer = userWriters.get(requestingUserId);
         if (writer != null) {
@@ -203,7 +216,10 @@ public class SocketService {
                     userListStr.append(",");
                 }
                 first = false;
-                userListStr.append(userId).append(":").append("User").append(userId);
+                
+                // 使用真实用户名
+                String userName = userNames.getOrDefault(userId, "User" + userId);
+                userListStr.append(userId).append(":").append(userName);
             }
             
             writer.println(userListStr.toString());
@@ -244,5 +260,12 @@ public class SocketService {
                 System.out.println("Private message from " + senderId + " to " + receiverId + ": " + content);
             }
         }
+    }
+
+    // 从数据库获取用户名的方法
+    private String getUserNameFromDatabase(Long userId) {
+        // 这里应该添加数据库查询代码
+        // 暂时返回null，使用默认名称
+        return null;
     }
 }

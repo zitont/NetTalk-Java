@@ -10,6 +10,9 @@ import java.io.*;
 import java.net.Socket;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.function.BiConsumer;
 
 public class PrivateChatView extends JFrame {
     // 颜色方案 - 与MainView保持一致
@@ -137,8 +140,9 @@ public class PrivateChatView extends JFrame {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
+                // 绘制方形背景，带圆角
                 g2.setColor(PRIMARY_COLOR);
-                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                 
                 super.paintComponent(g);
                 g2.dispose();
@@ -165,6 +169,18 @@ public class PrivateChatView extends JFrame {
         
         JScrollPane scrollPane = chatPanel.getScrollPane();
         add(scrollPane, BorderLayout.CENTER);
+        
+        // 设置转发消息监听器
+        chatPanel.setForwardMessageListener((content, isOwnMessage) -> {
+            // 获取可转发的用户列表
+            List<User> forwardUsers = getForwardableUsers();
+            
+            // 显示转发对话框
+            chatPanel.showForwardDialog(content, forwardUsers, (messageContent, targetUser) -> {
+                // 执行转发操作
+                forwardMessage(messageContent, targetUser);
+            });
+        });
     }
     
     private void initInputPanel() {
@@ -284,8 +300,8 @@ public class PrivateChatView extends JFrame {
             String pmCommand = "PM:" + targetUser.getId() + ":" + message;
             out.println(pmCommand);
             
-            // 在自己的聊天窗口显示消息
-            chatPanel.addMessage(message, true, null);
+            // 在自己的聊天窗口显示消息，传递当前用户名
+            chatPanel.addMessage(message, true, currentUser.getName());
             
             // 重置输入框
             inputField.setText("");
@@ -294,8 +310,60 @@ public class PrivateChatView extends JFrame {
         }
     }
     
-    // 接收私聊消息
+    /**
+     * 接收私聊消息
+     * @param message 消息内容
+     */
     public void receiveMessage(String message) {
+        // 在聊天面板显示接收到的消息，传递目标用户名
         chatPanel.addMessage(message, false, targetUser.getName());
+    }
+
+    /**
+     * 获取可转发的用户列表
+     * @return 用户列表
+     */
+    private List<User> getForwardableUsers() {
+        // 这里应该从主窗口获取用户列表
+        // 临时实现，实际应用中需要修改
+        List<User> users = new ArrayList<>();
+        
+        // 添加当前聊天对象，如果不是当前用户
+        if (targetUser.getId() != currentUser.getId()) {
+            users.add(targetUser);
+        }
+        
+        return users;
+    }
+
+    /**
+     * 转发消息给指定用户
+     * @param content 消息内容
+     * @param targetUser 目标用户
+     */
+    private void forwardMessage(String content, User targetUser) {
+        if (out != null) {
+            // 发送私聊消息格式: PM:接收者ID:消息内容
+            String pmCommand = "PM:" + targetUser.getId() + ":" + content;
+            out.println(pmCommand);
+            
+            // 显示转发成功提示
+            chatPanel.addSystemMessage("已转发消息给 " + targetUser.getName());
+        }
+    }
+
+    /**
+     * 发送消息
+     * @param message 消息内容
+     */
+    public void sendMessage(String message) {
+        if (!message.isEmpty() && out != null) {
+            // 发送私聊消息格式: PM:接收者ID:消息内容
+            String pmCommand = "PM:" + targetUser.getId() + ":" + message;
+            out.println(pmCommand);
+            
+            // 在自己的聊天窗口显示消息，传递当前用户名
+            chatPanel.addMessage(message, true, currentUser.getName());
+        }
     }
 }

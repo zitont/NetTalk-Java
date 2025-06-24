@@ -33,32 +33,46 @@ public class AIService {
      */
     public String translateText(String text, String targetLang) {
         try {
+            System.out.println("准备翻译文本: " + text);
+            System.out.println("目标语言: " + targetLang);
+            
+            // 从配置中获取API密钥
+            String apiKey = settings.getProperty("ai.api.key", "");
+            if (apiKey.isEmpty()) {
+                System.err.println("API密钥为空");
+                return "翻译错误: API密钥未配置";
+            }
+            
+            System.out.println("使用API密钥: " + apiKey.substring(0, 5) + "...");
+            
             // 构建请求JSON
             JSONObject requestJson = new JSONObject();
             requestJson.put("model", "Qwen/QwQ-32B");
             
             // 添加系统消息和用户消息
+            JSONArray messagesArray = new JSONArray();
+            
             JSONObject systemMessage = new JSONObject();
             systemMessage.put("role", "system");
             systemMessage.put("content", "You are a translator. Translate the text to " + getLanguageName(targetLang) + 
                               ". Only return the translated text without any explanations or additional text.");
+            messagesArray.put(systemMessage);
             
             JSONObject userMessage = new JSONObject();
             userMessage.put("role", "user");
             userMessage.put("content", text);
+            messagesArray.put(userMessage);
             
-            requestJson.append("messages", systemMessage);
-            requestJson.append("messages", userMessage);
+            requestJson.put("messages", messagesArray);
             
             // 设置最大令牌数
             requestJson.put("max_tokens", MAX_TOKENS);
             
+            System.out.println("请求JSON: " + requestJson.toString());
+            
             // 创建请求体
             RequestBody body = RequestBody.create(
                 MediaType.parse("application/json"), requestJson.toString());
-            
-            // 从配置中获取API密钥
-            String apiKey = settings.getProperty("ai.api.key", "");
             
             // 构建请求
             Request request = new Request.Builder()
@@ -68,14 +82,19 @@ public class AIService {
                     .header("Authorization", "Bearer " + apiKey)
                     .build();
 
+            System.out.println("发送请求到: " + API_URL);
+            
             // 执行请求
             try (Response response = httpClient.newCall(request).execute()) {
+                String responseBody = response.body().string();
+                System.out.println("收到响应: " + responseBody);
+                
                 if (!response.isSuccessful()) {
-                    return "翻译错误: " + response.code();
+                    System.err.println("请求失败，状态码: " + response.code());
+                    return "翻译错误: " + response.code() + " - " + responseBody;
                 }
 
                 // 解析响应
-                String responseBody = response.body().string();
                 JSONObject jsonResponse = new JSONObject(responseBody);
                 
                 // 提取翻译结果
@@ -85,11 +104,16 @@ public class AIService {
                     .getJSONObject("message")
                     .getString("content");
                 
+                System.out.println("解析出的翻译结果: " + translatedText);
                 return translatedText.trim();
             }
         } catch (IOException e) {
+            System.err.println("IO异常: " + e.getMessage());
+            e.printStackTrace();
             return "翻译服务不可用: " + e.getMessage();
         } catch (Exception e) {
+            System.err.println("翻译过程中出错: " + e.getMessage());
+            e.printStackTrace();
             return "翻译过程中出错: " + e.getMessage();
         }
     }

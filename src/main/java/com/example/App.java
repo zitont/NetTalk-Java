@@ -3,6 +3,7 @@ package com.example;
 import com.example.model.Settings;
 import com.example.service.SocketService;
 import com.example.view.LoginView;
+import com.example.component.ChatClient;
 
 import javax.swing.*;
 

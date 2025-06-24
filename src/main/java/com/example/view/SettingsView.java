@@ -1,6 +1,7 @@
 package com.example.view;
 
 import com.example.model.Settings;
+import com.example.service.SocketService;
 
 import javax.swing.*;
 import java.awt.*;
@@ -25,12 +26,20 @@ public class SettingsView extends JFrame {
     private JCheckBox serverModeCheckbox;
     private JButton saveButton;
     private JButton cancelButton;
+    private JButton startServerButton;
+    private boolean isServerRunning = false;
+    private   SocketService socketService;
     
     // 设置实例
     private Settings settings;
     
     public SettingsView() {
         settings = Settings.getInstance();
+        socketService = new SocketService();
+        
+        // 检查服务器是否已经在运行
+        isServerRunning = settings.isStartServerMode();
+        
         initUI();
     }
     
@@ -79,7 +88,25 @@ public class SettingsView extends JFrame {
         serverModeCheckbox.setBackground(BACKGROUND_COLOR);
         serverModeCheckbox.setAlignmentX(Component.LEFT_ALIGNMENT);
         mainPanel.add(serverModeCheckbox);
-        mainPanel.add(Box.createVerticalStrut(30));
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // 添加服务器控制按钮
+        startServerButton = new JButton(isServerRunning ? "停止服务器" : "启动服务器");
+        startServerButton.setFont(CHINESE_FONT);
+        startServerButton.setBackground(PRIMARY_COLOR);
+        startServerButton.setForeground(Color.WHITE);
+        startServerButton.setFocusPainted(false);
+        startServerButton.setBorderPainted(false);
+        startServerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        startServerButton.addActionListener(e -> toggleServer());
+        
+        JPanel serverControlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        serverControlPanel.setBackground(BACKGROUND_COLOR);
+        serverControlPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        serverControlPanel.add(startServerButton);
+        
+        mainPanel.add(serverControlPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
         
         // 按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -170,10 +197,57 @@ public class SettingsView extends JFrame {
             settings.setStartServerMode(serverMode);
             settings.saveSettings();
             
+            // 在保存设置后，如果服务器状态与设置不一致，则更新服务器状态
+            if (serverMode != isServerRunning) {
+                if (serverMode) {
+                    // 需要启动服务器
+                    socketService.startServer(port);
+                    isServerRunning = true;
+                    startServerButton.setText("停止服务器");
+                } else {
+                    // 需要停止服务器
+                    socketService.shutdown();
+                    isServerRunning = false;
+                    startServerButton.setText("启动服务器");
+                }
+            }
+            
             JOptionPane.showMessageDialog(this, "设置已保存，重启应用后生效", "成功", JOptionPane.INFORMATION_MESSAGE);
             dispose();
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "端口号必须是有效的数字", "错误", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * 切换服务器状态（启动/停止）
+     */
+    private void toggleServer() {
+        if (!isServerRunning) {
+            // 启动服务器
+            int port = Integer.parseInt(portField.getText().trim());
+            socketService.startServer(port);
+            
+            // 更新按钮和状态
+            startServerButton.setText("停止服务器");
+            isServerRunning = true;
+            
+            JOptionPane.showMessageDialog(this, 
+                "服务器已在端口 " + port + " 启动", 
+                "服务器状态", 
+                JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            // 停止服务器
+            socketService.shutdown();
+            
+            // 更新按钮和状态
+            startServerButton.setText("启动服务器");
+            isServerRunning = false;
+            
+            JOptionPane.showMessageDialog(this, 
+                "服务器已停止", 
+                "服务器状态", 
+                JOptionPane.INFORMATION_MESSAGE);
         }
     }
 }
