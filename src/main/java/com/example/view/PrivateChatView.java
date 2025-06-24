@@ -320,6 +320,18 @@ public class PrivateChatView extends JFrame {
     }
 
     /**
+     * 接收离线消息
+     * @param message 消息内容
+     */
+    public void receiveOfflineMessage(String message) {
+        // 在聊天面板显示接收到的离线消息，添加特殊标记
+        chatPanel.addMessage(message, false, targetUser.getName());
+        
+        // 可以添加一个小标记表示这是离线消息
+        chatPanel.addSystemMessage("以上是离线消息");
+    }
+
+    /**
      * 获取可转发的用户列表
      * @return 用户列表
      */

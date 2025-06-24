@@ -1,5 +1,9 @@
 package com.example.service;
 
+import com.example.dao.UserDAO;
+import com.example.model.Message;
+import com.example.service.OfflineMessageService.OfflineMessageSyncResult;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -15,7 +19,17 @@ public class SocketService {
     private ServerSocket serverSocket;
     private DatagramSocket discoverySocket;
     private boolean isRunning = false;
-    
+
+    // 添加离线消息服务和用户DAO
+    private final OfflineMessageService offlineMessageService;
+    private final UserDAO userDAO;
+
+    // 构造函数
+    public SocketService() {
+        this.offlineMessageService = new OfflineMessageService();
+        this.userDAO = new UserDAO();
+    }
+
     // Start the server with automatic discovery service
     public void startServer(int port) {
         final int serverPort = port > 0 ? port : PORT;
@@ -104,7 +118,6 @@ public class SocketService {
                 userId = Long.parseLong(idLine);
                 
                 // 从数据库获取真实用户名
-                // 这里需要添加数据库查询代码，暂时使用默认名称
                 userName = getUserNameFromDatabase(userId);
                 if (userName == null || userName.isEmpty()) {
                     userName = "User" + userId;
@@ -115,18 +128,28 @@ public class SocketService {
                 
                 // 保存用户名到映射中
                 userNames.put(userId, userName);
-                
+
+                // 同步离线消息
+                syncOfflineMessagesForUser(userId, out);
+
                 // 通知所有用户有新用户加入
                 broadcastUserJoined(userId, userName);
 
                 String message;
                 while ((message = in.readLine()) != null) {
+                    System.out.println("收到用户 " + userId + " 的消息: " + message);
+                    
                     if (message.equals("GET_USERS")) {
                         // 发送用户列表给请求的客户端
                         sendUserList(userId);
                     } else if (message.startsWith("PM:")) {
                         // 处理私聊消息
                         handlePrivateMessage(userId, message.substring(3));
+                    } else if (message.startsWith("GET_OFFLINE_MSG:")) {
+                        // 处理获取离线消息请求
+                        String senderIdStr = message.substring(15);
+                        System.out.println("收到获取离线消息请求，发送者ID字符串: '" + senderIdStr + "'");
+                        handleGetOfflineMessages(userId, senderIdStr);
                     } else {
                         broadcastMessage(userId, message);
                     }
@@ -134,6 +157,7 @@ public class SocketService {
 
             } catch (Exception e) {
                 System.err.println("Client error: " + e.getMessage());
+                e.printStackTrace();
             } finally {
                 if (userId != null) {
                     onlineUsers.remove(userId);
@@ -251,21 +275,107 @@ public class SocketService {
         if (parts.length == 2) {
             long receiverId = Long.parseLong(parts[0]);
             String content = parts[1];
-            
+
             // 向接收者发送私聊消息
             PrintWriter receiverWriter = userWriters.get(receiverId);
             if (receiverWriter != null) {
-                // 发送格式: PM:发送者ID:消息内容
+                // 接收者在线，直接发送消息
                 receiverWriter.println("PM:" + senderId + ":" + content);
                 System.out.println("Private message from " + senderId + " to " + receiverId + ": " + content);
+            } else {
+                // 接收者离线，存储为离线消息
+                boolean stored = offlineMessageService.storeOfflineMessage(senderId, receiverId, content);
+                if (stored) {
+                    System.out.println("Offline message stored from " + senderId + " to " + receiverId + ": " + content);
+                } else {
+                    System.err.println("Failed to store offline message from " + senderId + " to " + receiverId);
+                }
             }
         }
     }
 
     // 从数据库获取用户名的方法
     private String getUserNameFromDatabase(Long userId) {
-        // 这里应该添加数据库查询代码
-        // 暂时返回null，使用默认名称
-        return null;
+        try {
+            // 这里需要添加根据ID查询用户的方法
+            // 暂时返回null，使用默认名称
+            return null;
+        } catch (Exception e) {
+            System.err.println("获取用户名失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 为用户同步离线消息
+     * @param userId 用户ID
+     * @param out 输出流
+     */
+    private void syncOfflineMessagesForUser(Long userId, PrintWriter out) {
+        try {
+            OfflineMessageService.OfflineMessageSyncResult syncResult =
+                offlineMessageService.syncOfflineMessages(userId);
+
+            if (syncResult.isSuccess() && !syncResult.getUnreadMessages().isEmpty()) {
+                // 发送离线消息统计信息
+                Map<Long, Integer> stats = syncResult.getMessageStats();
+                for (Map.Entry<Long, Integer> entry : stats.entrySet()) {
+                    Long senderId = entry.getKey();
+                    Integer count = entry.getValue();
+                    
+                    // 发送格式: OFFLINE_STAT:发送者ID:消息数量
+                    out.println("OFFLINE_STAT:" + senderId + ":" + count);
+                }
+                
+                System.out.println("已为用户 " + userId + " 同步离线消息统计，共 " +
+                                 stats.size() + " 个发送者");
+            }
+        } catch (Exception e) {
+            System.err.println("同步离线消息失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 处理获取离线消息请求
+     * @param receiverId 接收者ID
+     * @param senderIdStr 发送者ID字符串
+     */
+    private void handleGetOfflineMessages(Long receiverId, String senderIdStr) {
+        try {
+            // 去除可能存在的冒号前缀
+            if (senderIdStr.startsWith(":")) {
+                senderIdStr = senderIdStr.substring(1);
+            }
+            
+            Long senderId = Long.parseLong(senderIdStr);
+            System.out.println("处理获取离线消息请求: 接收者 " + receiverId + " 请求来自发送者 " + senderId + " 的消息");
+            
+            // 获取来自特定发送者的离线消息
+            List<Message> messages = offlineMessageService.getOfflineMessagesFromSender(receiverId, senderId);
+            
+            // 获取接收者的写入器
+            PrintWriter writer = userWriters.get(receiverId);
+            if (writer != null && !messages.isEmpty()) {
+                System.out.println("发送 " + messages.size() + " 条离线消息给用户 " + receiverId);
+                
+                // 发送离线消息
+                for (Message msg : messages) {
+                    // 发送格式: OFFLINE_MSG:发送者ID:消息内容
+                    writer.println("OFFLINE_MSG:" + senderId + ":" + msg.getContent());
+                }
+                
+                // 标记消息为已读
+                List<Long> messageIds = new ArrayList<>();
+                for (Message msg : messages) {
+                    messageIds.add(msg.getId());
+                }
+                offlineMessageService.markMessagesAsRead(messageIds);
+            } else {
+                System.out.println("没有找到离线消息或用户不在线");
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("解析发送者ID失败: " + e.getMessage() + ", 原始字符串: '" + senderIdStr + "'");
+        }
     }
 }

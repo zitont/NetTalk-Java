@@ -456,6 +456,8 @@ public class MainView extends JFrame {
             String message;
             try {
                 while ((message = in.readLine()) != null) {
+                    System.out.println("收到服务器消息: " + message);
+                    
                     if (message.startsWith("USER_LIST:")) {
                         // 处理用户列表更新
                         handleUserListUpdate(message.substring(10));
@@ -468,6 +470,12 @@ public class MainView extends JFrame {
                     } else if (message.startsWith("PM:")) {
                         // 处理私聊消息
                         handlePrivateMessage(message.substring(3));
+                    } else if (message.startsWith("OFFLINE_STAT:")) {
+                        // 处理离线消息统计
+                        handleOfflineMessageStat(message.substring(13));
+                    } else if (message.startsWith("OFFLINE_MSG:")) {
+                        // 处理离线消息
+                        handleOfflineMessage(message.substring(12));
                     } else {
                         // 处理普通消息
                         addMessageBubble(message, false);
@@ -475,7 +483,7 @@ public class MainView extends JFrame {
                 }
             } catch (IOException e) {
                 if (!Thread.currentThread().isInterrupted() && clientSocket != null && !clientSocket.isClosed()) {
-                    JOptionPane.showMessageDialog(this, "服务器连接断开: " + e.getMessage());
+                    JOptionPane.showMessageDialog(MainView.this, "服务器连接断开: " + e.getMessage());
                     updateConnectionStatus(false);
                 }
             }
@@ -1085,6 +1093,15 @@ public class MainView extends JFrame {
         if (!privateChatWindows.containsKey(targetUser.getId())) {
             PrivateChatView chatView = new PrivateChatView(currentUser, targetUser, clientSocket);
             privateChatWindows.put(targetUser.getId(), chatView);
+            
+            // 获取与该用户的离线消息
+            if (out != null) {
+                // 发送获取离线消息的命令: GET_OFFLINE_MSG:发送者ID (不带冒号)
+                String command = "GET_OFFLINE_MSG:" + targetUser.getId();
+                System.out.println("发送获取离线消息命令: " + command);
+                out.println(command);
+            }
+            
             chatView.setVisible(true);
 
             // 当窗口关闭时从映射中移除
@@ -1364,6 +1381,84 @@ public class MainView extends JFrame {
             // 如果已有与该用户的私聊窗口，也在窗口中显示消息
             if (privateChatWindows.containsKey(targetUser.getId())) {
                 privateChatWindows.get(targetUser.getId()).sendMessage(content);
+            }
+        }
+    }
+
+    /**
+     * 处理离线消息
+     * @param message 离线消息内容
+     */
+    private void handleOfflineMessage(String message) {
+        System.out.println("处理离线消息: " + message);
+        
+        // 离线消息格式: 发送者ID:消息内容
+        String[] parts = message.split(":", 2);
+        if (parts.length == 2) {
+            try {
+                long senderId = Long.parseLong(parts[0]);
+                String content = parts[1];
+                
+                System.out.println("解析离线消息: 发送者ID=" + senderId + ", 内容=" + content);
+
+                // 查找发送者
+                User sender = findUserById(senderId);
+                if (sender != null) {
+                    // 检查是否已有与该用户的聊天窗口
+                    if (privateChatWindows.containsKey(senderId)) {
+                        // 如果有，直接在窗口中显示离线消息
+                        System.out.println("在现有私聊窗口显示离线消息");
+                        privateChatWindows.get(senderId).receiveOfflineMessage(content);
+                    } else {
+                        // 如果没有，创建新窗口并显示离线消息
+                        System.out.println("创建新私聊窗口并显示离线消息");
+                        PrivateChatView chatView = new PrivateChatView(currentUser, sender, clientSocket);
+                        privateChatWindows.put(senderId, chatView);
+                        chatView.setVisible(true);
+                        chatView.receiveOfflineMessage(content);
+
+                        // 当窗口关闭时从映射中移除
+                        chatView.addWindowListener(new WindowAdapter() {
+                            @Override
+                            public void windowClosed(WindowEvent e) {
+                                privateChatWindows.remove(senderId);
+                            }
+                        });
+                    }
+                } else {
+                    System.err.println("找不到发送者: ID=" + senderId);
+                }
+            } catch (NumberFormatException e) {
+                System.err.println("解析发送者ID失败: " + e.getMessage());
+            }
+        } else {
+            System.err.println("离线消息格式错误: " + message);
+        }
+    }
+
+    /**
+     * 处理离线消息统计
+     * @param message 离线消息统计内容
+     */
+    private void handleOfflineMessageStat(String message) {
+        // 离线消息统计格式: 发送者ID:消息数量
+        String[] parts = message.split(":", 2);
+        if (parts.length == 2) {
+            long senderId = Long.parseLong(parts[0]);
+            int count = Integer.parseInt(parts[1]);
+            
+            // 查找发送者
+            User sender = findUserById(senderId);
+            if (sender != null) {
+                String senderName = sender.getName();
+                
+                // 添加系统消息提示有离线消息
+                SwingUtilities.invokeLater(() -> {
+                    chatPanel.addSystemMessage("您有 " + count + " 条来自 " + senderName + " 的未读消息");
+                });
+                
+                // 可以选择自动打开私聊窗口或者高亮显示用户列表中的该用户
+                // 这里选择添加一个提示，让用户手动点击打开私聊
             }
         }
     }
