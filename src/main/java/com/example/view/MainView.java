@@ -1000,9 +1000,13 @@ public class MainView extends JFrame {
             
             // Check if user exists in all users list
             boolean userExists = false;
+            User existingUser = null;
+            
             for (User user : allUsers) {
                 if (user.getId() == userId) {
                     userExists = true;
+                    existingUser = user;
+                    user.setOnline(true);
                     break;
                 }
             }
@@ -1010,7 +1014,11 @@ public class MainView extends JFrame {
             // If user doesn't exist, add to all users list
             if (!userExists) {
                 User user = new User(userId, userName);
+                user.setOnline(true);
                 allUsers.add(user);
+            } else if (!existingUser.getName().equals(userName)) {
+                // If the name has changed, update it
+                existingUser.setName(userName);
             }
             
             // Update the user list based on current mode

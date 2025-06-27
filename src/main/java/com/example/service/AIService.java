@@ -37,7 +37,7 @@ public class AIService {
             System.out.println("目标语言: " + targetLang);
             
             // 从配置中获取API密钥
-            String apiKey = settings.getProperty("ai.api.key", "");
+            String apiKey = settings.getProperty("ai.api.key", "sk-wpnpxicdnyofyfdqhykrbbqvxnxzujumikgnwchbldxijooh");
             if (apiKey.isEmpty()) {
                 System.err.println("API密钥为空");
                 return "翻译错误: API密钥未配置";

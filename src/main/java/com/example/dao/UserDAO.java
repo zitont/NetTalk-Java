@@ -103,4 +103,26 @@ public class UserDAO {
         return users;
     }
 
+    /**
+     * 根据用户ID获取用户名
+     * @param userId 用户ID
+     * @return 用户名，如果未找到则返回null
+     */
+    public String getUserNameById(Long userId) {
+        String sql = "SELECT name FROM user WHERE _id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setLong(1, userId);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getString("name");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
 }

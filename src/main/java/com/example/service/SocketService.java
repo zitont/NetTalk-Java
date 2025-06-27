@@ -297,9 +297,8 @@ public class SocketService {
     // 从数据库获取用户名的方法
     private String getUserNameFromDatabase(Long userId) {
         try {
-            // 这里需要添加根据ID查询用户的方法
-            // 暂时返回null，使用默认名称
-            return null;
+            // 使用UserDAO获取用户名
+            return userDAO.getUserNameById(userId);
         } catch (Exception e) {
             System.err.println("获取用户名失败: " + e.getMessage());
             return null;

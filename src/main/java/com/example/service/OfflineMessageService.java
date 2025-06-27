@@ -127,8 +127,12 @@ public class OfflineMessageService {
      */
     public String getUserName(Long userId) {
         try {
-            // 这里需要根据ID查询用户名，但UserDAO目前没有这个方法
-            // 暂时返回默认格式
+            // 使用UserDAO获取用户名
+            String userName = userDAO.getUserNameById(userId);
+            if (userName != null && !userName.isEmpty()) {
+                return userName;
+            }
+            // 如果找不到，返回默认格式
             return "User" + userId;
         } catch (Exception e) {
             System.err.println("获取用户名失败: " + e.getMessage());
